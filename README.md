@@ -16,13 +16,14 @@
 **SHIFT** is a modern geospatial changepoint framework and interactive analysis workbench for coastal shoreline and river bank time-series. It is built as a web-native, open-source alternative to legacy GIS tools (like USGS DSAS), pairing classic shoreline/river bank change metrics with structural changepoint detection (regime shifts) and robust outlier-resistant regressions.
 
 ### 📸 Screenshots Gallery
-<div align="center">
-  <img src="docs/screenshots/01_rate_choropleth.png" width="49%" alt="Rate Choropleth Map" />
-  <img src="docs/screenshots/02_transects.png" width="49%" alt="Orthogonal Transects & Inspector" />
-  <br>
-  <img src="docs/screenshots/03_shorelines.png" width="49%" alt="Multi-temporal Shoreline Surveys" />
-  <img src="docs/screenshots/04_analysis.png" width="49%" alt="Analysis Results & Attribute Table" />
-</div>
+
+| Rate Choropleth Map | Orthogonal Transects & Inspector |
+| :---: | :---: |
+| <img src="docs/screenshots/01_rate_choropleth.png" alt="Rate Choropleth Map" /> | <img src="docs/screenshots/02_transects.png" alt="Orthogonal Transects" /> |
+| *Visualizing spatial erosion and accretion rates using DSAS-style color ramps.* | *Selecting individual transects to view robust regression fits and time-series.* |
+| **Multi-temporal Shoreline Surveys** | **Interactive Attribute Table** |
+| <img src="docs/screenshots/03_shorelines.png" alt="Multi-temporal Shorelines" /> | <img src="docs/screenshots/04_analysis.png" alt="Analysis Results" /> |
+| *Loading historical shoreline vectors automatically color-coded by survey date.* | *Comprehensive datagrid featuring classic, robust, and changepoint statistics.* |
 
 ---
 
