@@ -17,13 +17,13 @@
 
 ### 📸 Screenshots Gallery
 
-| Rate Choropleth Map | Orthogonal Transects & Inspector |
+| Multi-temporal Shoreline Surveys | Rate Choropleth Map |
 | :---: | :---: |
-| <img src="docs/screenshots/01_rate_choropleth.png" alt="Rate Choropleth Map" /> | <img src="docs/screenshots/02_transects.png" alt="Orthogonal Transects" /> |
-| *Visualizing spatial erosion and accretion rates using DSAS-style color ramps.* | *Selecting individual transects to view robust regression fits and time-series.* |
-| **Multi-temporal Shoreline Surveys** | **Interactive Attribute Table** |
-| <img src="docs/screenshots/03_shorelines.png" alt="Multi-temporal Shorelines" /> | <img src="docs/screenshots/04_analysis.png" alt="Analysis Results" /> |
-| *Loading historical shoreline vectors automatically color-coded by survey date.* | *Comprehensive datagrid featuring classic, robust, and changepoint statistics.* |
+| <img src="docs/screenshots/03_shorelines.png" alt="Multi-temporal Shorelines" /> | <img src="docs/screenshots/01_rate_choropleth.png" alt="Rate Choropleth Map" /> |
+| *Loading historical shoreline vectors automatically color-coded by survey date.* | *Visualizing spatial erosion and accretion rates using DSAS-style color ramps.* |
+| **Interactive Attribute Table** | **Orthogonal Transects & Inspector** |
+| <img src="docs/screenshots/04_analysis.png" alt="Analysis Results" /> | <img src="docs/screenshots/02_transects.png" alt="Orthogonal Transects" /> |
+| *Comprehensive datagrid featuring classic, robust, and changepoint statistics.* | *Selecting individual transects to view robust regression fits and time-series.* |
 
 ---
 
