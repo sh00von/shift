@@ -1,10 +1,16 @@
+<p align="center">
+  <img src="docs/logo.png" alt="SHIFT Logo" width="100" style="border-radius: 22px;" />
+</p>
+
 # SHIFT: Shoreline Intelligence, Forecasting & Trends - An Open-Source System for Shoreline and River Bank Dynamics
 
-[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-blue)](https://react.dev/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688.svg)](https://fastapi.tiangolo.com/)
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%2B-blue.svg" alt="Python Version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.3-black" alt="Next.js" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19.2-blue" alt="React" /></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.141-009688.svg" alt="FastAPI" /></a>
+</p>
 
 **SHIFT** is a modern geospatial changepoint framework and interactive analysis workbench for coastal shoreline and river bank time-series. It is built as a web-native, open-source alternative to legacy GIS tools (like USGS DSAS), pairing classic shoreline/river bank change metrics with structural changepoint detection (regime shifts) and robust outlier-resistant regressions.
 

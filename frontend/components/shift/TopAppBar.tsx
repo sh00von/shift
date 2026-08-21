@@ -265,12 +265,14 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
     <header className="flex h-14 flex-shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 select-none">
       {/* Brand */}
       <div className="flex items-center gap-2.5 pr-1">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white">
-          <Waves className="h-4 w-4" />
-        </div>
+        <img
+          src="/logo.png"
+          alt="SHIFT"
+          className="h-8 w-8 rounded-lg object-cover flex-shrink-0"
+        />
         <div className="leading-tight">
           <div className="text-sm font-semibold tracking-tight text-slate-900">SHIFT</div>
-          <div className="text-[11px] text-slate-500">Coastal Change Workbench</div>
+          <div className="text-[11px] text-slate-500">Shoreline & River Bank Dynamics</div>
         </div>
       </div>
 

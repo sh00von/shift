@@ -5,6 +5,21 @@ All notable changes to the **SHIFT** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-21
+
+### Added
+- **Official SHIFT Logo**: Multi-color Google-palette shoreline-change icon added as browser favicon, splash screen emblem, and top app bar brand mark.
+- **Monochrome Design System**: Replaced blue-tinted accent palette with a premium high-contrast monochrome (black/charcoal/gray) design system across the entire UI.
+- **Minimal Pre-loader**: Redesigned the app splash screen to an ultra-minimal white layout featuring the logo, a thin progress bar, and a sub-label cycling indicator.
+- **Open-Source Repository**: Project pushed to GitHub (`sh00von/shift`) with full README, LICENSE, CONTRIBUTING, CHANGELOG, CITATION.cff, and `.gitignore`.
+- **Demo Dataset Renamed**: Standardized sample data filenames to `demo_shorelines.geojson` and `demo_baseline.geojson`.
+- **Generalized Scope**: Renamed project subtitle to include River Bank Dynamics alongside Shoreline analysis throughout all documentation.
+
+### Changed
+- **Version badges** in README updated to exact installed versions (Next.js 16.3, React 19.2, FastAPI 0.141).
+- **Text contrast** globally improved for monochrome readability (slate-400/500 overrides).
+- **`skills-lock.json`** added to `.gitignore`.
+
 ## [0.1.0] - 2026-08-21
 
 ### Added

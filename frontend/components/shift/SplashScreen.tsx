@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 
 const INIT_STEPS = [
   "Initializing dynamics engine…",
@@ -30,12 +31,25 @@ export function SplashScreen() {
   }, []);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-slate-50 text-slate-800 select-none">
+    <div className="relative flex h-screen w-screen flex-col items-center justify-center bg-white select-none">
       <div className="flex flex-col items-center max-w-xs w-full px-4">
-        {/* Title */}
-        <h1 className="text-3xl font-extralight tracking-[0.25em] text-slate-900 mb-6 font-sans">
+        {/* Logo */}
+        <Image
+          src="/logo.png"
+          alt="SHIFT Logo"
+          width={72}
+          height={72}
+          className="rounded-2xl shadow-sm mb-5"
+          priority
+        />
+
+        {/* Brand Name */}
+        <h1 className="text-xl font-semibold tracking-[0.2em] text-slate-900 mb-1 font-sans">
           SHIFT
         </h1>
+        <p className="text-[10px] tracking-widest text-slate-400 uppercase mb-7 text-center">
+          Shoreline & River Bank Dynamics
+        </p>
 
         {/* Minimal Thin Progress Bar */}
         <div className="h-[2px] w-40 bg-slate-200/80 overflow-hidden relative rounded-full">
@@ -51,7 +65,7 @@ export function SplashScreen() {
         </div>
 
         {/* Dynamic Minimal Sub-label */}
-        <p className="text-[9px] tracking-widest text-slate-400 uppercase mt-8 text-center truncate max-w-full px-2">
+        <p className="text-[9px] tracking-widest text-slate-400 uppercase mt-6 text-center truncate max-w-full px-2">
           {INIT_STEPS[stepIdx]}
         </p>
       </div>

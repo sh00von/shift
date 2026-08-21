@@ -159,9 +159,9 @@ export function LayersTOC() {
         <div className="space-y-2.5">
           {slGradient && (
             <div className="space-y-1">
-              <div className="text-[11px] font-medium text-slate-500">Survey date</div>
+              <div className="text-[11px] font-medium text-slate-700">Survey date</div>
               <div className="h-2.5 w-full rounded-sm border border-slate-200" style={{ background: slGradient }} />
-              <div className="flex justify-between gb-num text-[10px] text-slate-500">
+              <div className="flex justify-between gb-num text-[10px] text-slate-600">
                 <span>{slDated[0]?.d}</span>
                 <span>{slDated[slDated.length - 1]?.d}</span>
               </div>
@@ -182,7 +182,7 @@ export function LayersTOC() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 w-full text-[11px] font-medium text-sky-700 bg-sky-50/60 border-sky-200 hover:bg-sky-100 hover:text-sky-800 gap-1.5"
+              className="h-7 w-full text-[11px] font-medium text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100 hover:text-slate-900 gap-1.5"
               onClick={() => store.setFieldMappingOpen(true)}
             >
               <SlidersHorizontal className="h-3 w-3" /> Edit Date & Uncertainty Fields…
@@ -226,12 +226,12 @@ export function LayersTOC() {
       legend: choropleth?.legend ? (
         <div className="space-y-2.5">
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+            <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
               <span>{choropleth.legend.title}</span>
               <span>m/yr</span>
             </div>
             <div className="h-2.5 w-full rounded-sm border border-slate-200" style={{ background: choropleth.legend.gradient }} />
-            <div className="flex justify-between gb-num text-[10px] text-slate-500">
+            <div className="flex justify-between gb-num text-[10px] text-slate-600">
               <span>{choropleth.legend.min.toFixed(1)}</span>
               <span>0.0</span>
               <span>+{choropleth.legend.max.toFixed(1)}</span>
@@ -268,7 +268,7 @@ export function LayersTOC() {
           </div>
         </div>
       ) : (
-        <span className="text-[11px] italic text-slate-400">Run analysis to calculate rates</span>
+        <span className="text-[11px] italic text-slate-500">Run analysis to calculate rates</span>
       ),
     },
     {
@@ -331,12 +331,12 @@ export function LayersTOC() {
                 <span className="flex w-5 flex-shrink-0 items-center justify-center">{l.swatch}</span>
 
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium text-slate-800">{l.name}</div>
-                  {l.meta && <div className="truncate text-[11px] text-slate-400">{l.meta}</div>}
+                  <div className="truncate text-[13px] font-medium text-slate-900">{l.name}</div>
+                  {l.meta && <div className="truncate text-[11px] text-slate-600">{l.meta}</div>}
                 </div>
 
                 {typeof l.count === "number" && l.count > 0 && (
-                  <span className="gb-num text-[11px] text-slate-400">{l.count}</span>
+                  <span className="gb-num text-[11px] text-slate-600">{l.count}</span>
                 )}
 
                 <button
@@ -366,7 +366,7 @@ export function LayersTOC() {
                   {l.legend}
                   {l.opacityKey && (
                     <div className="space-y-1.5">
-                      <div className="flex justify-between text-[11px] text-slate-400">
+                      <div className="flex justify-between text-[11px] text-slate-600">
                         <span>Opacity</span>
                         <span className="gb-num">{Math.round(opacity[l.opacityKey] * 100)}%</span>
                       </div>
@@ -397,9 +397,9 @@ export function LayersTOC() {
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" variant="ghost" className="h-9 w-full justify-start gap-2 text-[13px] text-slate-600"
+        <Button size="sm" variant="ghost" className="h-9 w-full justify-start gap-2 text-[13px] text-slate-700"
           onClick={openTable}>
-          <TableProperties className="h-4 w-4 text-slate-400" /> Open attribute table
+          <TableProperties className="h-4 w-4 text-slate-600" /> Open attribute table
         </Button>
       </div>
     </aside>

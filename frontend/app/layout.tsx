@@ -24,6 +24,10 @@ export const metadata: Metadata = {
   title: "SHIFT — Shoreline & River Bank Dynamics System",
   description:
     "SHIFT: Shoreline Intelligence, Forecasting & Trends - An Open-Source System for Shoreline and River Bank Dynamics.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({

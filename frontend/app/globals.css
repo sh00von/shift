@@ -44,52 +44,50 @@
 }
 
 :root {
-  /* ── Calm, Google-caliber light theme ──────────────────────────────
-     ONE brand accent (ocean blue). Everything else is a neutral slate
-     ramp. Semantic hues live only in data marks, never in chrome. */
-  --background: oklch(0.986 0.002 247);   /* app canvas — barely-there gray */
-  --foreground: oklch(0.21 0.02 250);     /* primary text */
+  /* ── Premium High-Contrast Monochrome Theme ────────────────────────── */
+  --background: oklch(0.99 0 0);           /* App canvas: pure off-white */
+  --foreground: oklch(0.15 0 0);           /* Primary text: deep charcoal */
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.02 250);
+  --card-foreground: oklch(0.15 0 0);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.02 250);
+  --popover-foreground: oklch(0.15 0 0);
 
-  /* Brand accent — single calm ocean blue */
-  --primary: oklch(0.55 0.15 245);
-  --primary-foreground: oklch(0.99 0 0);
+  /* Brand accent — pure monochrome black/charcoal */
+  --primary: oklch(0.15 0 0);
+  --primary-foreground: oklch(1 0 0);
 
-  --secondary: oklch(0.968 0.004 247);
-  --secondary-foreground: oklch(0.30 0.02 250);
+  --secondary: oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.30 0 0);
 
-  --muted: oklch(0.972 0.003 247);
-  --muted-foreground: oklch(0.52 0.015 250);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.50 0 0);
 
-  --accent: oklch(0.955 0.012 245);
-  --accent-foreground: oklch(0.30 0.03 250);
+  --accent: oklch(0.93 0 0);
+  --accent-foreground: oklch(0.15 0 0);
 
-  --destructive: oklch(0.58 0.19 25);
+  --destructive: oklch(0.40 0 0);
 
-  --border: oklch(0.922 0.004 247);
-  --input: oklch(0.922 0.004 247);
-  --ring: oklch(0.55 0.15 245);
+  --border: oklch(0.91 0 0);
+  --input: oklch(0.91 0 0);
+  --ring: oklch(0.30 0 0);
 
   --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.21 0.02 250);
-  --sidebar-primary: oklch(0.55 0.15 245);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.96 0.008 245);
-  --sidebar-accent-foreground: oklch(0.21 0.02 250);
-  --sidebar-border: oklch(0.922 0.004 247);
-  --sidebar-ring: oklch(0.55 0.15 245);
+  --sidebar-foreground: oklch(0.15 0 0);
+  --sidebar-primary: oklch(0.15 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0 0);
+  --sidebar-accent-foreground: oklch(0.15 0 0);
+  --sidebar-border: oklch(0.91 0 0);
+  --sidebar-ring: oklch(0.30 0 0);
 
-  /* Data ramp (choropleth / charts) — used on marks only */
-  --chart-1: oklch(0.60 0.15 245);
-  --chart-2: oklch(0.68 0.13 165);
-  --chart-3: oklch(0.75 0.15 80);
-  --chart-4: oklch(0.62 0.19 30);
-  --chart-5: oklch(0.55 0.13 300);
+  /* Data ramp (neutral gray intervals for monochrome chart styling) */
+  --chart-1: oklch(0.20 0 0);
+  --chart-2: oklch(0.35 0 0);
+  --chart-3: oklch(0.50 0 0);
+  --chart-4: oklch(0.65 0 0);
+  --chart-5: oklch(0.80 0 0);
 
   --radius: 0.625rem;
 
@@ -122,12 +120,12 @@
 
   /* Small uppercase section label */
   .gb-section-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500;
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-700;
   }
 
   /* A metric block: label + big tabular number */
   .gb-metric-label {
-    @apply text-[11px] font-medium text-slate-500;
+    @apply text-[11px] font-medium text-slate-700;
   }
   .gb-metric-value {
     @apply text-lg font-semibold text-slate-900;
@@ -140,6 +138,12 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* ── Monochrome contrast overrides ─────────────────────────────────────────
+   In the pure monochrome palette, Tailwind's slate-400/500 renders too faint.
+   These overrides globally remap them to stronger values for chrome text.    */
+.text-slate-400  { color: oklch(0.48 0 0) !important; }
+.text-slate-500  { color: oklch(0.42 0 0) !important; }
 
 /* Leaflet Canvas & Controls */
 .leaflet-container {
