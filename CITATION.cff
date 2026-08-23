@@ -6,7 +6,7 @@ authors:
 title: "SHIFT: Shoreline Intelligence, Forecasting & Trends - An Open-Source System for Shoreline and River Bank Dynamics"
 version: 0.3.0
 date-released: 2026-08-23
-doi: 10.5281/zenodo.22046678
-url: "https://github.com/sh00von/shift"
+doi: 10.5281/zenodo.22070830
+url: "https://doi.org/10.5281/zenodo.22070830"
 repository-code: "https://github.com/sh00von/shift"
 license: MIT
