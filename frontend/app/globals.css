@@ -195,10 +195,151 @@
   background: transparent;
 }
 
+/* Refined thin scrollbar for the docs (sidebar + content) */
+.docs-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d8 transparent;
+}
+.docs-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.docs-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
+}
+.docs-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.docs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Number display utility */
 .num-tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Documentation article typography (/docs) ──────────────────────────── */
+.shift-doc {
+  color: #3f3f46;
+  font-size: 15px;
+  line-height: 1.72;
+}
+.shift-doc > :first-child { margin-top: 0; }
+.shift-doc h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #0f172a;
+  margin: 0 0 0.4rem;
+  line-height: 1.15;
+}
+.shift-doc h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+  margin: 2.2rem 0 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid #e4e4e7;
+}
+.shift-doc h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 1.6rem 0 0.5rem;
+}
+.shift-doc h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 1.2rem 0 0.4rem;
+}
+.shift-doc p { margin: 0.75rem 0; }
+.shift-doc a {
+  color: #0f172a;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: #cbd5e1;
+  text-underline-offset: 2px;
+}
+.shift-doc a:hover { text-decoration-color: #0f172a; }
+/* Heading auto-link wrappers should not look like body links */
+.shift-doc h1 a, .shift-doc h2 a, .shift-doc h3 a, .shift-doc h4 a {
+  color: inherit;
+  text-decoration: none;
+}
+.shift-doc ul { list-style: disc; padding-left: 1.4rem; margin: 0.75rem 0; }
+.shift-doc ol { list-style: decimal; padding-left: 1.4rem; margin: 0.75rem 0; }
+.shift-doc li { margin: 0.3rem 0; }
+.shift-doc li > ul, .shift-doc li > ol { margin: 0.3rem 0; }
+.shift-doc strong { color: #0f172a; font-weight: 700; }
+.shift-doc blockquote {
+  border-left: 3px solid #18181b;
+  padding: 0.5rem 0 0.5rem 1rem;
+  margin: 1.1rem 0;
+  color: #52525b;
+  background: #fafafa;
+  border-radius: 0 8px 8px 0;
+}
+.shift-doc blockquote p { margin: 0.3rem 0; }
+.shift-doc code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 5px;
+  padding: 0.1rem 0.35rem;
+  color: #18181b;
+}
+.shift-doc pre {
+  background: #18181b;
+  color: #e4e4e7;
+  border: 1px solid #27272a;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  margin: 1.1rem 0;
+  font-size: 0.84rem;
+  line-height: 1.65;
+}
+.shift-doc pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.shift-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.1rem 0;
+  font-size: 0.86rem;
+  display: block;
+  overflow-x: auto;
+}
+.shift-doc th {
+  text-align: left;
+  font-weight: 700;
+  color: #0f172a;
+  background: #fafafa;
+  border: 1px solid #e4e4e7;
+  padding: 0.5rem 0.7rem;
+  white-space: nowrap;
+}
+.shift-doc td {
+  border: 1px solid #e4e4e7;
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+.shift-doc tr:nth-child(even) td { background: #fafafa; }
+.shift-doc hr { border: none; border-top: 1px solid #e4e4e7; margin: 2rem 0; }
+.shift-doc img { max-width: 100%; border-radius: 8px; }
 
 /* Indeterminate progress bar (jobs without streamed % — e.g. auto-baseline) */
 @keyframes gb-indeterminate {

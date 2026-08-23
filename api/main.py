@@ -64,14 +64,19 @@ def _params(s: Session) -> dict:
         "cast_side": s.cast_side, "buffer_distance": s.buffer_distance,
         "default_uncertainty": s.default_uncertainty,
         "run_classic": s.run_classic, "run_theilsen": s.run_theilsen, "run_ransac": s.run_ransac,
-        "run_breakpoint": s.run_breakpoint, "run_rf": s.run_rf,
+        "run_breakpoint": s.run_breakpoint,
+        "aln2d_reach_length": s.aln2d_reach_length, "aln2d_reach_buffer": s.aln2d_reach_buffer,
+        "aln2d_search_mask_buffer": s.aln2d_search_mask_buffer,
+        "scorecard_bic_gain": s.scorecard_bic_gain, "scorecard_outlier_z": s.scorecard_outlier_z,
+        "scorecard_tie_pct": s.scorecard_tie_pct, "has_scorecard": s.scorecard is not None,
         "forecast_model": s.forecast_model, "forecast_horizon": s.forecast_horizon,
         "forecast_ci": s.forecast_ci, "style_metric": s.style_metric, "color_ramp": s.color_ramp,
         "shoreline_palette": s.shoreline_palette,
         "date_col": s.date_col, "date_format": s.date_format, "uncertainty_col": s.uncertainty_col,
         "shoreline_filename": s.shoreline_filename, "baseline_filename": s.baseline_filename,
         "has_shoreline": s.shoreline_path is not None, "has_baseline": s.baseline_path is not None,
-        "has_results": bool(s.results), "logs": s.logs[-100:],
+        "has_results": bool(s.results), "has_aln2d_results": s.aln2d_summary is not None,
+        "logs": s.logs[-100:],
     }
 
 
@@ -86,7 +91,12 @@ class ParamPatch(BaseModel):
     run_theilsen: bool | None = None
     run_ransac: bool | None = None
     run_breakpoint: bool | None = None
-    run_rf: bool | None = None
+    aln2d_reach_length: float | None = None
+    aln2d_reach_buffer: float | None = None
+    aln2d_search_mask_buffer: float | None = None
+    scorecard_bic_gain: float | None = None
+    scorecard_outlier_z: float | None = None
+    scorecard_tie_pct: float | None = None
     forecast_model: str | None = None
     forecast_horizon: int | None = None
     forecast_ci: float | None = None
@@ -96,6 +106,7 @@ class ParamPatch(BaseModel):
     date_col: str | None = None
     date_format: str | None = None
     uncertainty_col: str | None = None
+
 
 
 class FieldMappingRequest(BaseModel):
@@ -379,6 +390,51 @@ def get_chart(sid: str, tid: int):
     return data
 
 
+@app.get("/api/session/{sid}/layers/aln2d/erosion")
+def layer_aln2d_erosion(sid: str):
+    return gj.aln2d_erosion_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/layers/aln2d/accretion")
+def layer_aln2d_accretion(sid: str):
+    return gj.aln2d_accretion_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/layers/aln2d/reaches")
+def layer_aln2d_reaches(sid: str):
+    return gj.aln2d_reaches_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/layers/aln2d/change")
+def layer_aln2d_change(sid: str):
+    return gj.aln2d_change_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/scorecard")
+def get_scorecard(sid: str):
+    return serialize.scorecard_view(_require(sid))
+
+
+@app.get("/api/session/{sid}/layers/best_method")
+def layer_best_method(sid: str):
+    return gj.best_method_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/aln2d/summary")
+def get_aln2d_summary(sid: str):
+    return {"rows": serialize.aln2d_summary_rows(_require(sid))}
+
+
+@app.get("/api/session/{sid}/aln2d/validation")
+def get_aln2d_validation(sid: str):
+    return {"rows": serialize.aln2d_validation_rows(_require(sid))}
+
+
+@app.get("/api/session/{sid}/aln2d/reaches")
+def get_aln2d_reaches(sid: str):
+    return {"rows": serialize.aln2d_reach_rows(_require(sid))}
+
+
 @app.get("/api/session/{sid}/forecast-models")
 def forecast_models(sid: str):
     s = _require(sid)
@@ -391,12 +447,9 @@ def forecast_models(sid: str):
     if r.get("ransac"):
         available.append("RANSAC Robust Rate")
     if r.get("classic"):
-        available += ["Linear Regression (LRR)", "Classic Endpoint Rate (EPR)"]
-    if r.get("rf"):
-        available.append("Random Forest Benchmark")
-    if r.get("bayesian"):
-        available.append("Bayesian Changepoint")
+        available += ["Kalman Filter (DSAS)", "Linear Regression (LRR)", "Classic Endpoint Rate (EPR)"]
     return {"models": available}
+
 
 
 # ── WebSocket progress-streamed jobs ────────────────────────────────────────
@@ -468,6 +521,24 @@ async def ws_analyze(ws: WebSocket, sid: str):
     await _run_job(ws, s, pipeline.run_analysis)
 
 
+@app.websocket("/api/session/{sid}/ws/aln2d")
+async def ws_aln2d(ws: WebSocket, sid: str):
+    s = store.get(sid)
+    if s is None:
+        await ws.close(code=4404)
+        return
+    await _run_job(ws, s, pipeline.run_aln2d)
+
+
+@app.websocket("/api/session/{sid}/ws/scorecard")
+async def ws_scorecard(ws: WebSocket, sid: str):
+    s = store.get(sid)
+    if s is None:
+        await ws.close(code=4404)
+        return
+    await _run_job(ws, s, pipeline.run_scorecard)
+
+
 @app.websocket("/api/session/{sid}/ws/forecast")
 async def ws_forecast(ws: WebSocket, sid: str):
     s = store.get(sid)
@@ -485,7 +556,6 @@ def _build_full_rates_df(s: Session) -> pd.DataFrame:
     theilsen = r.get("theilsen", [])
     ransac = r.get("ransac", [])
     breakpt = r.get("breakpoint", [])
-    rf = r.get("rf", [])
 
     rows = []
     for i, ser in enumerate(s.series_list):
@@ -493,7 +563,6 @@ def _build_full_rates_df(s: Session) -> pd.DataFrame:
         ts = theilsen[i] if i < len(theilsen) else None
         rs = ransac[i] if i < len(ransac) else None
         bp = breakpt[i] if i < len(breakpt) else None
-        rfr = rf[i] if i < len(rf) else None
 
         years = ser.years()
         n_pts = len(ser)
@@ -508,6 +577,9 @@ def _build_full_rates_df(s: Session) -> pd.DataFrame:
             "epr_m_yr": round(cl.epr, 3) if cl and cl.epr is not None else None,
             "lrr_m_yr": round(cl.lrr, 3) if cl and cl.lrr is not None else None,
             "lrr_r2": round(cl.lrr_r2, 4) if cl and cl.lrr_r2 is not None else None,
+            "lrr_ci_low_m_yr": round(cl.lrr_ci_low, 3) if cl and cl.lrr_ci_low is not None else None,
+            "lrr_ci_high_m_yr": round(cl.lrr_ci_high, 3) if cl and cl.lrr_ci_high is not None else None,
+            "lrr_significant": cl.lrr_significant if cl else None,
             "wlr_m_yr": round(cl.wlr, 3) if cl and cl.wlr is not None else None,
             "wlr_r2": round(cl.wlr_r2, 4) if cl and cl.wlr_r2 is not None else None,
             "nsm_m": round(cl.nsm, 2) if cl and cl.nsm is not None else None,
@@ -519,10 +591,10 @@ def _build_full_rates_df(s: Session) -> pd.DataFrame:
             "breakpoint_rate_m_yr": round(bp.overall_rate, 3) if bp and bp.overall_rate is not None else None,
             "break_year": round(bp.breakpoints[-1].year, 2) if bp and bp.breakpoints else None,
             "n_regimes": len(bp.breakpoints) + 1 if bp and bp.breakpoints else 1,
-            "rf_rate_m_yr": round(rfr.overall_rate, 3) if rfr and rfr.overall_rate is not None else None,
-            "rf_rmse_m": round(rfr.rf_rmse, 3) if rfr and rfr.rf_rmse is not None else None,
         })
     return pd.DataFrame(rows)
+
+
 
 
 def _build_intersections_df(s: Session) -> pd.DataFrame:
@@ -576,7 +648,6 @@ INCLUDED DATA PRODUCTS:
    - TSR (Theil-Sen Robust Rate, m/yr) & R²
    - RANSAC (Random Sample Consensus Rate, m/yr) & R²
    - Breakpoint (Pelt Changepoint Regime Shift Rate, m/yr, break year, n_regimes)
-   - Random Forest (ML non-linear rate benchmark & RMSE)
 
 2. transects_rates_envelope.geojson
    Spatial LineStrings clipped to the active shoreline envelope [min_dist, max_dist]
@@ -730,6 +801,36 @@ def export_bundle(sid: str):
                 z.writestr("forecast_shoreline.geojson", json.dumps(fc["line"], indent=2))
             if fc.get("ribbon"):
                 z.writestr("forecast_uncertainty_cone.geojson", json.dumps(fc["ribbon"], indent=2))
+
+        # 10. 2D-ALN (2D Areal-to-Linear Normalization) Package
+        if s.aln2d_erosion is not None and not s.aln2d_erosion.empty:
+            z.writestr(
+                "processed_erosion_polygons.geojson",
+                json.dumps(gj.aln2d_erosion_geojson(s), indent=2),
+            )
+        if s.aln2d_accretion is not None and not s.aln2d_accretion.empty:
+            z.writestr(
+                "processed_accretion_polygons.geojson",
+                json.dumps(gj.aln2d_accretion_geojson(s), indent=2),
+            )
+        if s.aln2d_reaches is not None and not s.aln2d_reaches.empty:
+            reaches_gj = gj.aln2d_reaches_geojson(s)
+            z.writestr(
+                "processed_linear_reach_rates.geojson",
+                json.dumps(reaches_gj.get("geojson", {}), indent=2),
+            )
+            df_reaches = pd.DataFrame(serialize.aln2d_reach_rows(s))
+            if not df_reaches.empty:
+                z.writestr("processed_linear_reach_rates.csv", df_reaches.to_csv(index=False))
+
+        if s.aln2d_summary is not None and not s.aln2d_summary.empty:
+            df_sum = pd.DataFrame(serialize.aln2d_summary_rows(s))
+            z.writestr("morphodynamic_budget_summary.csv", df_sum.to_csv(index=False))
+
+        if s.aln2d_validation is not None and not s.aln2d_validation.empty:
+            df_val = pd.DataFrame(serialize.aln2d_validation_rows(s))
+            z.writestr("statistical_validation_matrix.csv", df_val.to_csv(index=False))
+
 
     buf.seek(0)
     now_tag = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

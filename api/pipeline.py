@@ -18,15 +18,19 @@ from shift.timeseries import build_series
 from shift.stats import (
     BreakpointMethod,
     DSASMethod,
-    RandomForestMethod,
     TheilSenMethod,
     RansacMethod,
 )
 from shift.forecast import forecast as run_forecast
+from shift.forecast import kalman_forecast as run_kalman_forecast
+from shift.validation import build_scorecard
+from shift.aln2d import ALN2DEngine
+
 
 from api.session import Session
 
 ProgressCB = Callable[[str, float], None]
+
 
 
 def parse_dates(series: pd.Series, date_format: str = "auto") -> pd.Series:
@@ -156,6 +160,7 @@ def run_analysis(state: Session, progress: ProgressCB):
         m = DSASMethod()
         results["classic"] = [m.fit(s) for s in series_list]
 
+
     if state.run_theilsen:
         progress(f"Theil-Sen robust estimator on {n_total} transects…", 0.55)
         m = TheilSenMethod()
@@ -171,25 +176,49 @@ def run_analysis(state: Session, progress: ProgressCB):
         m = BreakpointMethod()
         results["breakpoint"] = [m.fit(s) for s in series_list]
 
-    if state.run_rf:
-        progress(f"Random Forest benchmark on {n_total} transects…", 0.80)
-        m = RandomForestMethod(n_estimators=200, holdout=True)
-        rf_results = []
-        step = max(1, n_total // 5)
-        for i, s in enumerate(series_list):
-            rf_results.append(m.fit(s))
-            if (i + 1) % step == 0 or (i + 1) == n_total:
-                cur = [r.rf_rmse for r in rf_results if r.rf_rmse is not None]
-                mean_rmse = np.mean(cur) if cur else 0.0
-                p = 0.80 + 0.08 * ((i + 1) / n_total)
-                progress(f"Random Forest: {i + 1}/{n_total} (holdout RMSE {mean_rmse:.2f} m)…", p)
-        results["rf"] = rf_results
-
     state.results = results
     # Forecast is NOT auto-generated — the user triggers it explicitly via the
     # Forecast action once rates are computed.
     progress(f"Analysis complete — {n_total} transects processed.", 1.0)
     return series_list, results, transects
+
+
+def run_aln2d(state: Session, progress: ProgressCB):
+    """Executes 2D Areal-to-Linear Normalization and 2D-ALN Engine."""
+    import os
+    if not state.shoreline_path or not os.path.exists(state.shoreline_path):
+        raise ValueError("No shoreline dataset loaded in current session.")
+
+    progress("2D-ALN: Loading shoreline layers…", 0.05)
+    shorelines = gpd.read_file(state.shoreline_path)
+
+    baseline = None
+    if state.baseline_path and os.path.exists(state.baseline_path):
+        baseline = gpd.read_file(state.baseline_path)
+
+    engine = ALN2DEngine(
+        reach_length_meters=state.aln2d_reach_length,
+        reach_buffer_meters=state.aln2d_reach_buffer,
+        search_mask_buffer_meters=state.aln2d_search_mask_buffer,
+    )
+
+    out = engine.run(
+        shorelines=shorelines,
+        date_col=state.date_col,
+        date_format=state.date_format,
+        baseline=baseline,
+        progress=progress,
+    )
+
+    state.aln2d_erosion = out["erosion_gdf"]
+    state.aln2d_accretion = out["accretion_gdf"]
+    state.aln2d_reaches = out["reach_gdf"]
+    state.aln2d_summary = out["summary_df"]
+    state.aln2d_validation = out["validation_df"]
+
+    progress("2D-ALN: 2D-ALN Analysis successfully completed.", 1.0)
+    return out
+
 
 
 def generate_forecast(state: Session, progress: ProgressCB):
@@ -201,6 +230,24 @@ def generate_forecast(state: Session, progress: ProgressCB):
     progress(f"Forecasting {state.forecast_horizon} years using {choice}…", 0.3)
 
     r = state.results
+    # Kalman filter derives its own position + rate straight from each series
+    # (the DSAS forecasting approach) — it only needs a RateResult shell to
+    # attach the forecast fields to, so use whatever rate result is available.
+    if "Kalman" in choice:
+        source = (
+            r.get("classic") or r.get("theilsen") or r.get("ransac")
+            or r.get("breakpoint") or []
+        )
+        forecast_results = []
+        for s, res in zip(state.series_list, source):
+            forecast_results.append(
+                run_kalman_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
+                if res is not None else None
+            )
+        state.results["forecast"] = forecast_results
+        progress(f"Kalman-filter forecast complete for {n_total} transects.", 1.0)
+        return forecast_results
+
     if "Breakpoint" in choice:
         source = r.get("breakpoint") or r.get("classic") or []
     elif "Theil-Sen" in choice:
@@ -211,10 +258,6 @@ def generate_forecast(state: Session, progress: ProgressCB):
         source = r.get("classic") or []
     elif "Endpoint" in choice or "EPR" in choice:
         source = r.get("classic") or []
-    elif "Bayesian" in choice:
-        source = r.get("bayesian") or r.get("breakpoint") or []
-    elif "Random Forest" in choice:
-        source = r.get("rf") or r.get("classic") or []
     else:
         source = r.get("breakpoint") or r.get("classic") or []
 
@@ -230,6 +273,25 @@ def generate_forecast(state: Session, progress: ProgressCB):
     state.results["forecast"] = forecast_results
     progress(f"Forecast complete for {n_total} transects.", 1.0)
     return forecast_results
+
+
+def run_scorecard(state: Session, progress: ProgressCB):
+    """Out-of-sample cross-validation ranking of all rate/position methods."""
+    if not state.series_list:
+        raise ValueError("Run the analysis first — no time series to score.")
+    progress("Scoring methods with LOOCV + rolling-origin cross-validation…", 0.05)
+    result = build_scorecard(
+        state.series_list,
+        thresholds={
+            "bic_gain": state.scorecard_bic_gain,
+            "outlier_z": state.scorecard_outlier_z,
+            "tie_pct": state.scorecard_tie_pct,
+        },
+        progress=progress,
+    )
+    state.scorecard = result
+    progress(result["headline"], 1.0)
+    return result
 
 
 # ── Synthetic helpers (auto-baseline + demo data) ───────────────────────────

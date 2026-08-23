@@ -24,7 +24,6 @@ def table_rows(state: Session) -> list[dict]:
     theilsen = r.get("theilsen", [])
     ransac = r.get("ransac", [])
     breakpt = r.get("breakpoint", [])
-    rf = r.get("rf", [])
 
     rows = []
     for i, s in enumerate(state.series_list):
@@ -32,18 +31,31 @@ def table_rows(state: Session) -> list[dict]:
         ts = theilsen[i] if i < len(theilsen) else None
         rs = ransac[i] if i < len(ransac) else None
         bp = breakpt[i] if i < len(breakpt) else None
-        rfr = rf[i] if i < len(rf) else None
+        # Trend classification from the LRR 95% CI: a rate whose CI includes zero
+        # is "Stable" (not statistically distinguishable from no change).
+        if cl and cl.lrr_significant is True and cl.lrr is not None:
+            trend = "Erosion" if cl.lrr < 0 else "Accretion"
+        elif cl and cl.lrr_significant is False:
+            trend = "Stable"
+        else:
+            trend = "—"
+        if cl and cl.lrr_ci_low is not None and cl.lrr_ci_high is not None:
+            lrr_ci = f"{cl.lrr_ci_low:.2f} to {cl.lrr_ci_high:.2f}"
+        else:
+            lrr_ci = "—"
+
         rows.append({
             "id": s.transect_id,
             "epr": _f(cl.epr if cl else None),
             "lrr": _f(cl.lrr if cl else None),
+            "lrr_ci": lrr_ci,
+            "trend": trend,
             "tsr": _f(ts.theilsen if ts else None),
             "ransac": _f(rs.ransac if rs else None),
             "wlr": _f(cl.wlr if cl else None),
             "bp_rate": _f(bp.overall_rate if bp else None),
             "bp_year": _f(bp.breakpoints[-1].year if bp and bp.breakpoints else None, 0),
             "n_brk": str(len(bp.breakpoints) + 1) if bp else "1",
-            "rf_rmse": _f(rfr.rf_rmse if rfr else None),
         })
     return rows
 
@@ -134,12 +146,40 @@ def diagnostics(state: Session) -> dict | None:
     theilsen = r.get("theilsen", [])
     ransac = r.get("ransac", [])
     breakpt = r.get("breakpoint", [])
-    rf_list = r.get("rf", [])
+
+    # Error metrics (RMSE/MAE/BIC) are part of the *evaluation* stage: they are
+    # only computed once the user has run Rank Methods (the Scorecard). Until
+    # then the Diagnostics view shows just rate + R² (the cheap byproduct of the
+    # analysis fits). This keeps analysis lean and computes error metrics once.
+    with_errors = state.scorecard is not None
 
     M = {k: {"rates": [], "r2s": [], "rmses": [], "maes": [], "bics": []}
-         for k in ("lrr", "ts", "rs", "bp", "rf", "epr")}
+         for k in ("lrr", "ts", "rs", "bp", "epr")}
     n_breaks_total = 0
     n_outliers_total = 0
+
+    def _push(bucket, rate, d, y, sst, n, k=2, r2_stored=None):
+        """Record fit stats for one method on one transect.
+
+        R² is the value already computed at analysis time (`r2_stored`) when
+        available — the single source of truth, so the number here always matches
+        the attribute table / CSV export. When no stored R² exists (EPR,
+        Breakpoint), R² is computed from `y`. RMSE/BIC are *derived* from that R²
+        (SSE = SST·(1−R²)) and MAE measured from `y` — but only when
+        `with_errors` (i.e. Rank Methods has been run); otherwise just rate + R².
+        """
+        if r2_stored is not None:
+            r2 = float(max(0.0, min(1.0, r2_stored)))
+            sse = sst * (1.0 - r2)
+        else:
+            sse = float(np.sum((d - y) ** 2))
+            r2 = float(max(0.0, min(1.0, 1.0 - sse / sst)))
+        bucket["rates"].append(rate)
+        bucket["r2s"].append(r2)
+        if with_errors:
+            bucket["rmses"].append(float(np.sqrt(max(sse, 0.0) / n)))
+            bucket["maes"].append(float(np.mean(np.abs(d - y))))
+            bucket["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + k * np.log(n)))
 
     for i, s in enumerate(s_list):
         years = np.array(s.years()); d = np.array(s.distances); n = len(years)
@@ -151,44 +191,28 @@ def diagnostics(state: Session) -> dict | None:
         if cl and cl.lrr is not None and not math.isnan(cl.lrr):
             res = st.linregress(years, d)
             y = res.slope * years + res.intercept
-            sse = float(np.sum((d - y) ** 2))
-            M["lrr"]["rates"].append(cl.lrr)
-            M["lrr"]["r2s"].append(float(res.rvalue ** 2))
-            M["lrr"]["rmses"].append(float(np.sqrt(sse / n)))
-            M["lrr"]["maes"].append(float(np.mean(np.abs(d - y))))
-            M["lrr"]["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + 2 * np.log(n)))
+            _push(M["lrr"], cl.lrr, d, y, sst, n, r2_stored=cl.lrr_r2)
 
         ts = theilsen[i] if i < len(theilsen) else None
         if ts and ts.theilsen is not None and not math.isnan(ts.theilsen):
             res = st.theilslopes(d, years, alpha=0.90)
             y = ts.theilsen * years + res.intercept
-            sse = float(np.sum((d - y) ** 2))
-            M["ts"]["rates"].append(ts.theilsen)
-            M["ts"]["r2s"].append(float(max(0.0, min(1.0, 1.0 - sse / sst))))
-            M["ts"]["rmses"].append(float(np.sqrt(sse / n)))
-            M["ts"]["maes"].append(float(np.mean(np.abs(d - y))))
-            M["ts"]["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + 2 * np.log(n)))
+            _push(M["ts"], ts.theilsen, d, y, sst, n, r2_stored=ts.theilsen_r2)
 
         rs = ransac[i] if i < len(ransac) else None
         if rs and rs.ransac is not None and not math.isnan(rs.ransac):
             if rs.ransac_outliers:
                 n_outliers_total += rs.ransac_outliers
-            y = rs.ransac * (years - years[0]) + d[0]
-            sse = float(np.sum((d - y) ** 2))
-            M["rs"]["rates"].append(rs.ransac)
-            M["rs"]["r2s"].append(float(max(0.0, min(1.0, 1.0 - sse / sst))))
-            M["rs"]["rmses"].append(float(np.sqrt(sse / n)))
-            M["rs"]["maes"].append(float(np.mean(np.abs(d - y))))
-            M["rs"]["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + 2 * np.log(n)))
+            # Best-fit intercept for the RANSAC slope (for MAE only); R²/RMSE/BIC
+            # come from the stored ransac_r2.
+            intercept = float(np.mean(d - rs.ransac * years))
+            y = rs.ransac * years + intercept
+            _push(M["rs"], rs.ransac, d, y, sst, n, r2_stored=rs.ransac_r2)
 
         if cl and cl.epr is not None and not math.isnan(cl.epr):
+            # EPR line passes through both endpoints by definition; no stored R².
             y = cl.epr * (years - years[0]) + d[0]
-            sse = float(np.sum((d - y) ** 2))
-            M["epr"]["rates"].append(cl.epr)
-            M["epr"]["r2s"].append(float(max(0.0, 1.0 - sse / sst)))
-            M["epr"]["rmses"].append(float(np.sqrt(sse / n)))
-            M["epr"]["maes"].append(float(np.mean(np.abs(d - y))))
-            M["epr"]["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + 2 * np.log(n)))
+            _push(M["epr"], cl.epr, d, y, sst, n)
 
         bp = breakpt[i] if i < len(breakpt) else None
         if bp:
@@ -205,26 +229,13 @@ def diagnostics(state: Session) -> dict | None:
                         y[cuts[c]:cuts[c+1]] = rr.slope * sx + rr.intercept
                     else:
                         y[cuts[c]:cuts[c+1]] = sy
-                sse = float(np.sum((d - y) ** 2))
                 k = 2 * (len(cuts) - 1) + len(idx)
             else:
                 res = st.linregress(years, d)
                 y = res.slope * years + res.intercept
-                sse = float(np.sum((d - y) ** 2)); k = 2
-            M["bp"]["rates"].append(overall)
-            M["bp"]["r2s"].append(float(max(0.0, min(1.0, 1.0 - sse / sst))))
-            M["bp"]["rmses"].append(float(np.sqrt(sse / n)))
-            M["bp"]["maes"].append(float(np.mean(np.abs(d - y))))
-            M["bp"]["bics"].append(float(n * np.log(max(sse / n, 1e-10)) + k * np.log(n)))
-
-        rf = rf_list[i] if i < len(rf_list) else None
-        if rf and rf.rf_rmse is not None:
-            rmse = rf.rf_rmse
-            M["rf"]["rates"].append((rf.rf_prediction - d[0]) / max(years[-1] - years[0], 0.1) if rf.rf_prediction else (cl.lrr if cl else 0.0))
-            M["rf"]["r2s"].append(float(max(0.0, 1.0 - (rmse ** 2) / (sst / n))))
-            M["rf"]["rmses"].append(float(rmse))
-            M["rf"]["maes"].append(float(rmse * 0.8))
-            M["rf"]["bics"].append(float(n * np.log(max(rmse ** 2, 1e-10)) + 4 * np.log(n)))
+                k = 2
+            # Breakpoint has no single stored R² (piecewise); compute from the fit.
+            _push(M["bp"], overall, d, y, sst, n, k=k)
 
     def avg(lst, d=2):
         return f"{np.mean(lst):.{d}f}" if lst else "—"
@@ -245,16 +256,18 @@ def diagnostics(state: Session) -> dict | None:
         {"model": "Breakpoint Regression (SHIFT)", "rate": avg(M["bp"]["rates"]), "r2": avg(M["bp"]["r2s"], 3),
          "rmse": avg(M["bp"]["rmses"]) + " m", "mae": avg(M["bp"]["maes"]) + " m", "bic": avg(M["bp"]["bics"], 1),
          "comp": f"{n_breaks_total} shifts detected"},
-        {"model": "Random Forest Benchmark (ML)", "rate": avg(M["rf"]["rates"]), "r2": avg(M["rf"]["r2s"], 3),
-         "rmse": avg(M["rf"]["rmses"]) + " m", "mae": avg(M["rf"]["maes"]) + " m", "bic": avg(M["rf"]["bics"], 1),
-         "comp": "200 Trees (Non-linear)"},
     ]
 
     mean_lrr = np.mean(M["lrr"]["rmses"]) if M["lrr"]["rmses"] else 0.0
     mean_bp = np.mean(M["bp"]["rmses"]) if M["bp"]["rmses"] else 0.0
     improvement = (100 * (mean_lrr - mean_bp) / max(mean_lrr, 1e-5)) if mean_lrr > 0 else 0.0
 
-    return {"n_transects": len(s_list), "rows": rows, "rmse_improvement": round(improvement, 1)}
+    return {
+        "n_transects": len(s_list),
+        "rows": rows,
+        "rmse_improvement": round(improvement, 1),
+        "has_errors": with_errors,
+    }
 
 
 def summary_stats(state: Session) -> dict | None:
@@ -280,3 +293,106 @@ def summary_stats(state: Session) -> dict | None:
         "max_erosion": f"{min(lrrs):+.2f} m/yr" if lrrs else "—",
         "max_accretion": f"{max(lrrs):+.2f} m/yr" if lrrs else "—",
     }
+
+
+def aln2d_summary_rows(state: Session) -> list[dict]:
+    """Returns rows for the 2D Morphodynamic Budget Summary table."""
+    if state.aln2d_summary is None or state.aln2d_summary.empty:
+        return []
+    df = state.aln2d_summary.copy()
+    rows = []
+    for _, row in df.iterrows():
+        rows.append({
+            "from_epoch": str(row.get("From_Epoch", "")),
+            "to_epoch": str(row.get("To_Epoch", "")),
+            "span_years": _f(row.get("Span_Years")),
+            "eroded_km2": _f(row.get("Eroded_km2"), 3),
+            "accreted_km2": _f(row.get("Accreted_km2"), 3),
+            "erosion_rate_km2_yr": _f(row.get("Erosion_Rate_km2_yr"), 3),
+            "accretion_rate_km2_yr": _f(row.get("Accretion_Rate_km2_yr"), 3),
+            "net_balance_km2_yr": _f(row.get("Net_Balance_km2_yr"), 3),
+        })
+    return rows
+
+
+def aln2d_validation_rows(state: Session) -> list[dict]:
+    """Returns rows for the Academic Thesis Statistical Validation Matrix."""
+    if state.aln2d_validation is None or state.aln2d_validation.empty:
+        return []
+    df = state.aln2d_validation.copy()
+    rows = []
+    for _, row in df.iterrows():
+        rows.append({
+            "metric_name": str(row.get("metric_name", "")),
+            "vs_lrr": str(row.get("vs_lrr", "")),
+            "vs_epr": str(row.get("vs_epr", "")),
+            "vs_kf": str(row.get("vs_kf", "")),
+        })
+    return rows
+
+
+def scorecard_view(state: Session) -> dict:
+    """Model scorecard for the frontend: headline, leaderboard rows, winner distribution."""
+    sc = state.scorecard
+    if not sc:
+        return {"available": False, "headline": "", "recommended": None, "rows": [],
+                "distribution": [], "n_participating": 0, "n_total": 0, "thresholds": {}}
+
+    def fmt(v, unit="", d=2):
+        if v is None:
+            return "—"
+        return f"{v:.{d}f}{unit}"
+
+    rows = []
+    for r in sc["rows"]:
+        rows.append({
+            "method": r["method"],
+            "holdout_rmse": fmt(r.get("holdout_rmse"), " m"),
+            "holdout_mae": fmt(r.get("holdout_mae"), " m"),
+            # Keep legacy aliases for any old clients
+            "loocv_rmse": fmt(r.get("holdout_rmse"), " m"),
+            "roll_rmse": fmt(r.get("holdout_mae"), " m"),
+            "mae": fmt(r.get("holdout_mae"), " m"),
+            "r2": fmt(r["r2"], "", 3),
+            "bic": fmt(r["bic"], "", 1),
+            "coverage": f"{r['coverage']}/{sc['n_participating']}",
+            "win_pct": f"{r['win_pct']:.0f}%",
+            "is_recommended": r["method"] == sc.get("recommended"),
+        })
+
+    # Winner distribution (only methods that won at least one transect)
+    dist = [{"method": r["method"], "wins": r["wins"], "win_pct": r["win_pct"]}
+            for r in sc["rows"] if r["wins"] > 0]
+    dist.sort(key=lambda d: d["wins"], reverse=True)
+
+    return {
+        "available": True,
+        "headline": sc["headline"],
+        "recommended": sc.get("recommended"),
+        "rows": rows,
+        "distribution": dist,
+        "n_participating": sc["n_participating"],
+        "n_total": sc["n_total"],
+        "thresholds": sc["thresholds"],
+    }
+
+
+def aln2d_reach_rows(state: Session) -> list[dict]:
+    """Returns rows for the Reach-level 2D-ALN vs 1D comparisons table."""
+    if state.aln2d_reaches is None or state.aln2d_reaches.empty:
+        return []
+    df = state.aln2d_reaches.copy()
+    rows = []
+    for _, row in df.iterrows():
+        rows.append({
+            "reach_id": int(row.get("reach_id", 0)),
+            "length_m": _f(row.get("length_m"), 1),
+            "net_2d_m_yr": _f(row.get("net_2d_m_yr"), 2),
+            "ero_2d_m_yr": _f(row.get("ero_2d_m_yr"), 2),
+            "acc_2d_m_yr": _f(row.get("acc_2d_m_yr"), 2),
+            "dsas_lrr_m_yr": _f(row.get("dsas_lrr_m_yr"), 2),
+            "dsas_epr_m_yr": _f(row.get("dsas_epr_m_yr"), 2),
+            "dsas_kf_m_yr": _f(row.get("dsas_kf_m_yr"), 2),
+        })
+    return rows
+

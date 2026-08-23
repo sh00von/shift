@@ -26,13 +26,13 @@ const COLS: {
   { key: "id", label: "T-ID", align: "center", tooltip: "Transect ID index" },
   { key: "epr", label: "EPR", align: "right", tooltip: "End Point Rate (m/yr)", rate: true },
   { key: "lrr", label: "LRR", align: "right", tooltip: "Linear Regression Rate (m/yr)", rate: true },
+  { key: "trend", label: "Trend", align: "center", tooltip: "LRR trend from the 95% confidence interval — Stable when the CI includes zero (not significant)" },
   { key: "tsr", label: "Theil-Sen", align: "right", tooltip: "Robust Median Slope (m/yr)", rate: true },
   { key: "ransac", label: "RANSAC", align: "right", tooltip: "Random Sample Consensus (m/yr)", rate: true },
   { key: "wlr", label: "WLR", align: "right", tooltip: "Weighted Linear Regression (m/yr)", rate: true },
   { key: "bp_rate", label: "Post-break", align: "right", tooltip: "Latest regime rate (m/yr)", rate: true },
   { key: "bp_year", label: "Break yr", align: "center", tooltip: "Inflection / changepoint year" },
   { key: "n_brk", label: "Regimes", align: "center", tooltip: "Number of regime shifts" },
-  { key: "rf_rmse", label: "RF RMSE", align: "right", tooltip: "Random Forest residual error (m)" },
 ];
 
 const FILTERS: { id: TableFilterKind; label: string }[] = [
@@ -52,6 +52,22 @@ function rateClass(v: unknown) {
 
 const alignClass = (a?: string) =>
   a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left";
+
+const TREND_STYLE: Record<string, string> = {
+  Erosion: "bg-rose-50 text-rose-700 ring-rose-200",
+  Accretion: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  Stable: "bg-slate-100 text-slate-500 ring-slate-200",
+};
+
+function TrendBadge({ value }: { value: string }) {
+  const style = TREND_STYLE[value];
+  if (!style) return <span className="text-slate-300">—</span>;
+  return (
+    <span className={cn("rounded px-1.5 py-0.5 text-[11px] font-semibold ring-1", style)}>
+      {value}
+    </span>
+  );
+}
 
 export function AttributeTable() {
   const {
@@ -221,6 +237,7 @@ export function AttributeTable() {
                     {COLS.map((c) => (
                       <TableCell
                         key={c.key}
+                        title={c.key === "lrr" ? `95% CI: ${r.lrr_ci} m/yr` : undefined}
                         className={cn(
                           "gb-num px-3 py-2 text-[13px]",
                           alignClass(c.align),
@@ -231,7 +248,7 @@ export function AttributeTable() {
                             : "text-slate-600"
                         )}
                       >
-                        {r[c.key] ?? "—"}
+                        {c.key === "trend" ? <TrendBadge value={String(r.trend)} /> : (r[c.key] ?? "—")}
                       </TableCell>
                     ))}
                   </TableRow>

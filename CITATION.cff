@@ -4,8 +4,8 @@ authors:
   - family-names: "Minaruzzaman Shovon"
     given-names: "Md."
 title: "SHIFT: Shoreline Intelligence, Forecasting & Trends - An Open-Source System for Shoreline and River Bank Dynamics"
-version: 0.2.0
-date-released: 2026-08-21
+version: 0.3.0
+date-released: 2026-08-23
 doi: 10.5281/zenodo.22046678
 url: "https://github.com/sh00von/shift"
 repository-code: "https://github.com/sh00von/shift"

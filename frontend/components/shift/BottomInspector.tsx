@@ -1,10 +1,12 @@
 "use client";
 
-import { TableProperties, BarChart2, Terminal, X } from "lucide-react";
+import { TableProperties, BarChart2, Trophy, Sparkles, Terminal, X } from "lucide-react";
 import { useStore, BottomTab } from "@/lib/store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttributeTable } from "./AttributeTable";
 import { Diagnostics } from "./Diagnostics";
+import { ScorecardView } from "./ScorecardView";
+import { ALN2DView } from "./ALN2DView";
 import { ConsoleLog } from "./ConsoleLog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,12 +14,21 @@ import { cn } from "@/lib/utils";
 const TABS: { value: BottomTab; label: string; Icon: any; count: (s: any) => string | null }[] = [
   { value: "table", label: "Attribute table", Icon: TableProperties, count: (s) => (s.n > 0 ? String(s.n) : null) },
   { value: "diagnostics", label: "Diagnostics", Icon: BarChart2, count: (s) => (s.hasResults ? "fit" : null) },
+  { value: "scorecard", label: "Model Scorecard", Icon: Trophy, count: (s) => (s.hasScorecard ? "rank" : null) },
+  { value: "aln2d", label: "2D-ALN Morphodynamics", Icon: Sparkles, count: (s) => (s.hasAln2d ? "2D" : null) },
   { value: "console", label: "Console", Icon: Terminal, count: (s) => String(s.logs) },
 ];
 
+
 export function BottomInspector() {
   const { activeBottomTab, setActiveBottomTab, transects, logs, params, setBottomDockOpen } = useStore();
-  const ctx = { n: transects?.features?.length || 0, hasResults: params?.has_results, logs: logs.length };
+  const ctx = {
+    n: transects?.features?.length || 0,
+    hasResults: params?.has_results,
+    hasAln2d: params?.has_aln2d_results,
+    hasScorecard: params?.has_scorecard,
+    logs: logs.length,
+  };
 
   return (
     <Tabs
@@ -41,7 +52,11 @@ export function BottomInspector() {
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 gb-num text-[10px]",
-                      value === "diagnostics" ? "bg-primary/10 text-primary" : "bg-slate-100 text-slate-500"
+                      value === "aln2d"
+                        ? "bg-emerald-100 text-emerald-700 font-semibold"
+                        : value === "diagnostics"
+                        ? "bg-primary/10 text-primary"
+                        : "bg-slate-100 text-slate-500"
                     )}
                   >
                     {c}
@@ -64,9 +79,16 @@ export function BottomInspector() {
       <TabsContent value="diagnostics" className="m-0 min-h-0 flex-1 overflow-hidden">
         <Diagnostics />
       </TabsContent>
+      <TabsContent value="scorecard" className="m-0 min-h-0 flex-1 overflow-hidden">
+        <ScorecardView />
+      </TabsContent>
+      <TabsContent value="aln2d" className="m-0 min-h-0 flex-1 overflow-hidden">
+        <ALN2DView />
+      </TabsContent>
       <TabsContent value="console" className="m-0 min-h-0 flex-1 overflow-hidden">
         <ConsoleLog />
       </TabsContent>
     </Tabs>
   );
 }
+

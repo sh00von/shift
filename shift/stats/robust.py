@@ -89,12 +89,14 @@ class RansacMethod(BaseMethod):
                 transect_id=series.transect_id,
                 method="ransac",
                 ransac=float(res.slope),
+                ransac_r2=float(res.rvalue ** 2),
                 ransac_outliers=0,
                 overall_rate=float(res.slope),
             )
 
         min_samples = max(2, min(3, n - 1))
-        # Use 2.5x shoreline uncertainty or 20.0m threshold
+        # Residual threshold: 2.5x median survey uncertainty (or 20 m when no
+        # uncertainty data), floored at 10 m so it never collapses to ~0.
         thresh = float(np.median(series.uncertainties) * 2.5) if series.uncertainties else 20.0
         thresh = max(10.0, thresh)
 
@@ -119,13 +121,20 @@ class RansacMethod(BaseMethod):
                 # Fallback if RANSAC fails on singular geometries
                 res = st.linregress(years, d)
                 slope = float(res.slope)
+                intercept = float(res.intercept)
                 n_outliers = 0
 
+        # Coefficient of determination of the fitted RANSAC line over all points.
+        y_pred = slope * years + intercept
+        sse = float(np.sum((d - y_pred) ** 2))
+        sst = float(np.sum((d - np.mean(d)) ** 2)) or 1e-10
+        r2 = float(max(0.0, min(1.0, 1.0 - (sse / sst))))
 
         return RateResult(
             transect_id=series.transect_id,
             method="ransac",
             ransac=slope,
+            ransac_r2=r2,
             ransac_outliers=n_outliers,
             overall_rate=slope,
         )

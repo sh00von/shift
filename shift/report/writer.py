@@ -29,8 +29,6 @@ def write_gpkg(
             "overall_rate": r.overall_rate,
             "n_breakpoints": len(r.breakpoints),
             "break_years": ",".join(f"{b.year:.1f}" for b in r.breakpoints),
-            "rf_prediction": r.rf_prediction,
-            "rf_rmse": r.rf_rmse,
         }
         rows.append(row)
 

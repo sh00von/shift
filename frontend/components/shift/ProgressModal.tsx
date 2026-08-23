@@ -13,7 +13,15 @@ const LEVEL_DOT: Record<string, string> = {
 };
 
 // Jobs that stream real progress over the websocket — get a % bar + stage stepper.
-const PROGRESS_JOBS = new Set(["Run Rate Analysis", "Cast Transects", "Update Forecast"]);
+const PROGRESS_JOBS = new Set([
+  "Run Rate Analysis",
+  "Cast Transects",
+  "Update Forecast",
+  "Run 2D-ALN Engine",
+  "2D-ALN Analysis",
+  "Run 2D-ALN",
+  "Rank Methods",
+]);
 // Jobs that run as a single REST call — get an indeterminate animated bar.
 const INDETERMINATE_JOBS = new Set([
   "Load Demo Dataset",
@@ -27,6 +35,14 @@ const STAGES = [
   { label: "Intersect", minP: 0.25, maxP: 0.4, icon: BarChart3 },
   { label: "Models", minP: 0.45, maxP: 0.88, icon: Sparkles },
   { label: "Forecast", minP: 0.9, maxP: 1.0, icon: TrendingUp },
+];
+
+const ALN_STAGES = [
+  { label: "Ingest & CRS", minP: 0.05, maxP: 0.25, icon: Layers },
+  { label: "Topology Mask", minP: 0.25, maxP: 0.45, icon: Activity },
+  { label: "2D Boolean", minP: 0.45, maxP: 0.7, icon: BarChart3 },
+  { label: "Reach Normalization", minP: 0.7, maxP: 0.95, icon: Sparkles },
+  { label: "Complete", minP: 0.95, maxP: 1.0, icon: TrendingUp },
 ];
 
 export function ProgressModal() {
@@ -67,7 +83,9 @@ export function ProgressModal() {
 
   const realPct = Math.min(100, Math.max(0, Math.round(progress * 100)));
   const pct = indeterminate ? Math.round(simPct) : realPct;
-  const showStages = activeJobName === "Run Rate Analysis";
+  const isALN = activeJobName?.includes("2D-ALN") || activeJobName?.includes("ALN");
+  const showStages = activeJobName === "Run Rate Analysis" || isALN;
+  const currentStages = isALN ? ALN_STAGES : STAGES;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
@@ -102,10 +120,10 @@ export function ProgressModal() {
           </div>
         </div>
 
-        {/* Stage stepper (analysis only) */}
+        {/* Stage stepper */}
         {showStages && (
           <div className="mt-5 grid grid-cols-5 gap-2">
-            {STAGES.map((s) => {
+            {currentStages.map((s) => {
               const past = progress >= s.maxP || pct === 100;
               const current = progress >= s.minP && progress < s.maxP;
               const Icon = s.icon;
@@ -128,6 +146,7 @@ export function ProgressModal() {
             })}
           </div>
         )}
+
 
         {/* Live log tail */}
         <div className="mt-5 h-28 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">

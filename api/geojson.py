@@ -149,9 +149,6 @@ def _extract_vals(state: Session):
     if "RANSAC" in m:
         res_list = r.get("ransac") or []
         return [x.ransac if x else nan for x in res_list]
-    if "Random Forest" in m or "RF" in m:
-        res_list = r.get("rf") or []
-        return [x.overall_rate if x else nan for x in res_list]
     if "Post" in m or "Breakpoint" in m or "rate" in m.lower():
         res_list = r.get("breakpoint") or r.get("classic") or []
         return [x.overall_rate if x else nan for x in res_list]
@@ -345,7 +342,16 @@ def forecast_geojson(state: Session) -> dict:
 def _to_fc(gdf: gpd.GeoDataFrame, extra_props: dict | None = None) -> dict:
     feats = []
     for _, row in gdf.iterrows():
-        props = {k: v for k, v in row.items() if k != "geometry"}
+        props = {}
+        for k, v in row.items():
+            if k == "geometry":
+                continue
+            if isinstance(v, (int, float, str, bool)) or v is None:
+                props[k] = None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v
+            elif hasattr(v, "isoformat"):
+                props[k] = v.isoformat()
+            else:
+                props[k] = str(v)
         if extra_props:
             props.update(extra_props)
         feats.append({
@@ -354,3 +360,194 @@ def _to_fc(gdf: gpd.GeoDataFrame, extra_props: dict | None = None) -> dict:
             "properties": props,
         })
     return {"type": "FeatureCollection", "features": feats}
+
+
+def aln2d_erosion_geojson(state: Session) -> dict:
+    """GeoJSON polygon features for multi-epoch erosion mass."""
+    if state.aln2d_erosion is None or state.aln2d_erosion.empty:
+        return {"type": "FeatureCollection", "features": []}
+
+    gdf = state.aln2d_erosion.copy()
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:32646")
+    gdf = gdf.to_crs("EPSG:4326")
+    return _to_fc(gdf, {"layer_type": "aln2d_erosion", "fillColor": "#ef4444", "color": "#dc2626"})
+
+
+def aln2d_accretion_geojson(state: Session) -> dict:
+    """GeoJSON polygon features for multi-epoch accretion mass."""
+    if state.aln2d_accretion is None or state.aln2d_accretion.empty:
+        return {"type": "FeatureCollection", "features": []}
+
+    gdf = state.aln2d_accretion.copy()
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:32646")
+    gdf = gdf.to_crs("EPSG:4326")
+    return _to_fc(gdf, {"layer_type": "aln2d_accretion", "fillColor": "#10b981", "color": "#059669"})
+
+
+BEST_METHOD_COLORS = {
+    "EPR": "#64748b",
+    "LRR": "#2563eb",
+    "WLR": "#0891b2",
+    "Theil-Sen": "#16a34a",
+    "RANSAC": "#65a30d",
+    "Kalman": "#7c3aed",
+    "Breakpoint": "#ea580c",
+}
+_NO_WINNER_COLOR = "#cbd5e1"
+
+
+def best_method_geojson(state: Session) -> dict:
+    """Transect lines coloured by the winning (recommended) method per transect."""
+    sc = state.scorecard
+    if not sc or state.transects is None or state.transects.empty:
+        return {"geojson": {"type": "FeatureCollection", "features": []}, "legend": None}
+
+    winners = {int(p["transect_id"]): p.get("winner") for p in sc.get("per_transect", [])}
+
+    gdf = state.transects.copy()
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:32646")
+    gdf = gdf.to_crs("EPSG:4326")
+
+    feats = []
+    seen: dict[str, int] = {}
+    for _, row in gdf.iterrows():
+        tid = int(row.get("transect_id", -1))
+        winner = winners.get(tid)
+        color = BEST_METHOD_COLORS.get(winner, _NO_WINNER_COLOR)
+        if winner:
+            seen[winner] = seen.get(winner, 0) + 1
+        feats.append({
+            "type": "Feature",
+            "geometry": shapely.geometry.mapping(row["geometry"]),
+            "properties": {
+                "transect_id": tid,
+                "winner": winner or "None",
+                "color": color,
+            },
+        })
+
+    legend = {
+        "title": "Best method (per transect)",
+        "categories": [
+            {"label": m, "color": BEST_METHOD_COLORS[m], "count": seen[m]}
+            for m in BEST_METHOD_COLORS if m in seen
+        ],
+    }
+    return {"geojson": {"type": "FeatureCollection", "features": feats}, "legend": legend}
+
+
+def aln2d_change_geojson(state: Session) -> dict:
+    """Combined erosion + accretion mass as one diverging choropleth.
+
+    Erosion polygons carry a *negative* signed rate and accretion a *positive* one,
+    coloured on a symmetric red→neutral→green ramp (like the rate choropleth) so the
+    two mass layers read as a single morphodynamic change surface.
+    """
+    parts = []
+    if state.aln2d_erosion is not None and not state.aln2d_erosion.empty:
+        g = state.aln2d_erosion.copy()
+        g["change_type"] = "Erosion"
+        g["signed_rate_km2_yr"] = -pd.to_numeric(g.get("rate_km2_yr"), errors="coerce")
+        parts.append(g)
+    if state.aln2d_accretion is not None and not state.aln2d_accretion.empty:
+        g = state.aln2d_accretion.copy()
+        g["change_type"] = "Accretion"
+        g["signed_rate_km2_yr"] = pd.to_numeric(g.get("rate_km2_yr"), errors="coerce")
+        parts.append(g)
+
+    if not parts:
+        return {"geojson": {"type": "FeatureCollection", "features": []}, "legend": None}
+
+    gdf = gpd.GeoDataFrame(pd.concat(parts, ignore_index=True), crs=parts[0].crs)
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:32646")
+    gdf = gdf.to_crs("EPSG:4326")
+
+    vals = [v for v in gdf["signed_rate_km2_yr"].tolist()
+            if v is not None and not (isinstance(v, float) and math.isnan(v))]
+    maxabs = max((abs(v) for v in vals), default=1.0) or 1.0
+    vmin, vmax = -maxabs, maxabs
+
+    feats = []
+    for _, row in gdf.iterrows():
+        v = row.get("signed_rate_km2_yr")
+        color = _rate_colour(v, vmin, vmax, "rate", state.color_ramp)
+        feats.append({
+            "type": "Feature",
+            "geometry": shapely.geometry.mapping(row["geometry"]),
+            "properties": {
+                "layer_type": "aln2d_change",
+                "change_type": str(row.get("change_type", "")),
+                "period": str(row.get("period", "")),
+                "rate_km2_yr": float(row["rate_km2_yr"]) if pd.notna(row.get("rate_km2_yr")) else None,
+                "signed_rate_km2_yr": float(v) if v is not None and not (isinstance(v, float) and math.isnan(v)) else None,
+                "color": color,
+            },
+        })
+
+    legend = {
+        "title": "2D-ALN Net Change (km²/yr)",
+        "min": round(-maxabs, 3),
+        "max": round(maxabs, 3),
+        "gradient": RAMP_GRADIENTS.get(state.color_ramp, RAMP_GRADIENTS["Red-Yellow-Green (DSAS)"]),
+    }
+    return {"geojson": {"type": "FeatureCollection", "features": feats}, "legend": legend}
+
+
+def aln2d_reaches_geojson(state: Session) -> dict:
+    """GeoJSON reach segments with 2D-ALN rate choropleth & 1D benchmarks."""
+    if state.aln2d_reaches is None or state.aln2d_reaches.empty:
+        return {
+            "geojson": {"type": "FeatureCollection", "features": []},
+            "legend": None,
+        }
+
+    gdf = state.aln2d_reaches.copy()
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:32646")
+    gdf = gdf.to_crs("EPSG:4326")
+
+    rates = [r for r in gdf["net_2d_m_yr"].tolist() if r is not None and not (isinstance(r, float) and math.isnan(r))]
+    if not rates:
+        return {"geojson": _to_fc(gdf), "legend": None}
+
+    vmin, vmax = min(rates), max(rates)
+    if vmin == vmax:
+        vmin, vmax = vmin - 1.0, vmax + 1.0
+
+    feats = []
+    for _, row in gdf.iterrows():
+        v = row.get("net_2d_m_yr")
+        color = _rate_colour(v, vmin, vmax, "net_2d_m_yr", state.color_ramp)
+        props = {
+            "reach_id": int(row["reach_id"]),
+            "length_m": float(row["length_m"]),
+            "net_2d_m_yr": float(row["net_2d_m_yr"]),
+            "ero_2d_m_yr": float(row["ero_2d_m_yr"]),
+            "acc_2d_m_yr": float(row["acc_2d_m_yr"]),
+            "dsas_lrr_m_yr": float(row.get("dsas_lrr_m_yr", 0.0)),
+            "dsas_epr_m_yr": float(row.get("dsas_epr_m_yr", 0.0)),
+            "dsas_kf_m_yr": float(row.get("dsas_kf_m_yr", 0.0)),
+            "color": color,
+        }
+        feats.append({
+            "type": "Feature",
+            "geometry": shapely.geometry.mapping(row["geometry"]),
+            "properties": props,
+        })
+
+    legend = {
+        "title": "2D-ALN Rate (m/yr)",
+        "min": round(float(vmin), 2),
+        "max": round(float(vmax), 2),
+        "gradient": RAMP_GRADIENTS.get(state.color_ramp, RAMP_GRADIENTS["Red-Yellow-Green (DSAS)"]),
+    }
+
+    return {
+        "geojson": {"type": "FeatureCollection", "features": feats},
+        "legend": legend,
+    }
+

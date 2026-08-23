@@ -29,7 +29,7 @@ class Breakpoint:
     rate_after: float     # m/yr
     ci_before: tuple[float, float] = (0.0, 0.0)
     ci_after: tuple[float, float] = (0.0, 0.0)
-    probability: float = 1.0      # used by Bayesian method
+    probability: float = 1.0      # reserved; 1.0 for deterministic breakpoints
 
 
 @dataclass
@@ -47,10 +47,13 @@ class RateResult:
     epr: float | None = None    # End Point Rate (m/yr)
     lrr: float | None = None    # Linear Regression Rate (m/yr)
     lrr_r2: float | None = None
+    lrr_ci_low: float | None = None    # 95% CI lower bound of the LRR slope (m/yr)
+    lrr_ci_high: float | None = None   # 95% CI upper bound of the LRR slope (m/yr)
+    lrr_significant: bool | None = None  # True if the 95% CI excludes zero
     wlr: float | None = None    # Weighted Linear Regression (m/yr)
     wlr_r2: float | None = None
 
-    # Changepoint results (breakpoint.py + bayesian.py)
+    # Changepoint results (breakpoint.py)
     breakpoints: list[Breakpoint] = field(default_factory=list)
     overall_rate: float | None = None   # rate of final segment (most recent era)
 
@@ -58,16 +61,48 @@ class RateResult:
     theilsen: float | None = None
     theilsen_r2: float | None = None
     ransac: float | None = None
+    ransac_r2: float | None = None
     ransac_outliers: int | None = None
 
-    # ML benchmark (rf.py) — prediction at held-out year
-    rf_prediction: float | None = None
-    rf_rmse: float | None = None
-
     # Forecast (forecast module appends this)
-
-
     forecast_years: list[float] = field(default_factory=list)
     forecast_distances: list[float] = field(default_factory=list)
     forecast_lower: list[float] = field(default_factory=list)
     forecast_upper: list[float] = field(default_factory=list)
+
+
+
+@dataclass
+class MorphodynamicBudget:
+    """Areal mass change record between two chronological epochs."""
+    from_epoch: str
+    to_epoch: str
+    span_years: float
+    eroded_km2: float
+    accreted_km2: float
+    erosion_rate_km2_yr: float
+    accretion_rate_km2_yr: float
+    net_balance_km2_yr: float
+
+
+@dataclass
+class ReachRate:
+    """2D-ALN reach rate and comparative 1D DSAS benchmark metrics."""
+    reach_id: int
+    length_m: float
+    net_2d_m_yr: float
+    ero_2d_m_yr: float
+    acc_2d_m_yr: float
+    dsas_epr_m_yr: float = 0.0
+    dsas_lrr_m_yr: float = 0.0
+    dsas_kf_m_yr: float = 0.0
+
+
+@dataclass
+class ALN2DValidationMetric:
+    """Statistical metric comparing 2D-ALN ground truth to 1D DSAS models."""
+    metric_name: str
+    vs_lrr: str
+    vs_epr: str
+    vs_kf: str
+

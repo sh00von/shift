@@ -21,14 +21,19 @@ class BreakpointMethod(BaseMethod):
     """
     Parameters
     ----------
-    min_segment     Minimum number of observations per segment
-    penalty         Override automatic BIC penalty (None = auto)
+    min_segment     Minimum observations per segment (default 3). A 2-point
+                    segment fits a line with zero residual, which biases BIC
+                    toward spurious breaks, so >=3 is used.
+    penalty         Override automatic BIC penalty (None = auto). NOTE: the app
+                    always leaves this None; the explicit-penalty branch in
+                    _exhaustive_search uses a raw-SSE scale that is not directly
+                    comparable to the BIC baseline, so only pass it deliberately.
     max_breaks      Maximum number of breakpoints to consider
     """
 
     def __init__(
         self,
-        min_segment: int = 2,
+        min_segment: int = 3,
         penalty: float | None = None,
         max_breaks: int = 3,
     ) -> None:

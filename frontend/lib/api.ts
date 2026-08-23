@@ -24,7 +24,13 @@ export interface Params {
   run_theilsen: boolean;
   run_ransac: boolean;
   run_breakpoint: boolean;
-  run_rf: boolean;
+  aln2d_reach_length?: number;
+  aln2d_reach_buffer?: number;
+  aln2d_search_mask_buffer?: number;
+  scorecard_bic_gain?: number;
+  scorecard_outlier_z?: number;
+  scorecard_tie_pct?: number;
+  has_scorecard?: boolean;
   forecast_model: string;
   forecast_horizon: number;
   forecast_ci: number;
@@ -39,8 +45,10 @@ export interface Params {
   has_shoreline: boolean;
   has_baseline: boolean;
   has_results: boolean;
+  has_aln2d_results?: boolean;
   logs: string[];
 }
+
 
 export interface ShorelinePreviewRow {
   index: number;
@@ -78,6 +86,39 @@ export interface ChoroplethResponse {
   } | null;
 }
 
+export interface ScorecardRow {
+  method: string;
+  holdout_rmse: string;
+  holdout_mae: string;
+  loocv_rmse?: string;
+  roll_rmse?: string;
+  mae?: string;
+  r2: string;
+  bic: string;
+  coverage: string;
+  win_pct: string;
+  is_recommended: boolean;
+}
+
+export interface ScorecardView {
+  available: boolean;
+  headline: string;
+  recommended: string | null;
+  rows: ScorecardRow[];
+  distribution: { method: string; wins: number; win_pct: number }[];
+  n_participating: number;
+  n_total: number;
+  thresholds: { bic_gain: number; outlier_z: number; tie_pct: number };
+}
+
+export interface CategoricalLayer {
+  geojson: FeatureCollection;
+  legend: {
+    title: string;
+    categories: { label: string; color: string; count: number }[];
+  } | null;
+}
+
 export interface ForecastLayer {
   line: FeatureCollection | null;
   ribbon: FeatureCollection | null;
@@ -90,18 +131,22 @@ export interface TableRow {
   id: number;
   epr: string;
   lrr: string;
+  lrr_ci: string;
+  trend: string;
   tsr: string;
   ransac: string;
   wlr: string;
   bp_rate: string;
   bp_year: string;
   n_brk: string;
-  rf_rmse: string;
 }
 
 export interface DiagnosticsResponse {
   n_transects: number;
   rmse_improvement: number;
+  // Error metrics (RMSE/MAE/BIC) are only computed after Rank Methods has run.
+  // Before that, only rate + R² are populated and this is false.
+  has_errors: boolean;
   rows: {
     model: string;
     rate: string;
@@ -135,6 +180,35 @@ export interface ChartData {
     lower: number[];
     upper: number[];
   } | null;
+}
+
+export interface Aln2dSummaryRow {
+  from_epoch: string;
+  to_epoch: string;
+  span_years: string;
+  eroded_km2: string;
+  accreted_km2: string;
+  erosion_rate_km2_yr: string;
+  accretion_rate_km2_yr: string;
+  net_balance_km2_yr: string;
+}
+
+export interface Aln2dValidationRow {
+  metric_name: string;
+  vs_lrr: string;
+  vs_epr: string;
+  vs_kf: string;
+}
+
+export interface Aln2dReachRow {
+  reach_id: number;
+  length_m: string;
+  net_2d_m_yr: string;
+  ero_2d_m_yr: string;
+  acc_2d_m_yr: string;
+  dsas_lrr_m_yr: string;
+  dsas_epr_m_yr: string;
+  dsas_kf_m_yr: string;
 }
 
 export const api = {
@@ -236,6 +310,42 @@ export const api = {
       j<ForecastLayer>
     ),
 
+  // 2D-ALN Layers & Outputs
+  aln2dErosion: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/erosion`).then(
+      j<FeatureCollection>
+    ),
+  aln2dAccretion: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/accretion`).then(
+      j<FeatureCollection>
+    ),
+  aln2dReaches: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/reaches`).then(
+      j<ChoroplethResponse>
+    ),
+  aln2dChange: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/change`).then(
+      j<ChoroplethResponse>
+    ),
+  scorecard: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/scorecard`).then(j<ScorecardView>),
+  bestMethod: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/best_method`).then(
+      j<CategoricalLayer>
+    ),
+  aln2dSummary: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/aln2d/summary`).then(
+      j<{ rows: Aln2dSummaryRow[] }>
+    ),
+  aln2dValidation: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/aln2d/validation`).then(
+      j<{ rows: Aln2dValidationRow[] }>
+    ),
+  aln2dReachRows: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/aln2d/reaches`).then(
+      j<{ rows: Aln2dReachRow[] }>
+    ),
+
   table: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/table`).then(
       j<{ rows: TableRow[] }>
@@ -253,6 +363,7 @@ export const api = {
       j<{ models: string[] }>
     ),
 
+
   exportUrl: (
     sid: string,
     kind: "bundle" | "csv" | "intersections" | "transects" | "transects_rates" | "forecast"
@@ -269,7 +380,8 @@ export const api = {
   },
 };
 
-export type JobKind = "preview" | "analyze" | "forecast";
+export type JobKind = "preview" | "analyze" | "forecast" | "aln2d" | "scorecard";
+
 
 export interface ProgressFrame {
   type: "progress" | "done" | "error";

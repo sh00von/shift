@@ -248,6 +248,29 @@ export function TransectInspector() {
         </div>
 
         {activeRow ? (
+          <div className="space-y-2">
+          {/* Trend verdict from the LRR 95% confidence interval */}
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-xl border px-3 py-2 text-[12px]",
+              activeRow.trend === "Erosion"
+                ? "border-rose-200 bg-rose-50/60 text-rose-700"
+                : activeRow.trend === "Accretion"
+                ? "border-emerald-200 bg-emerald-50/60 text-emerald-700"
+                : "border-slate-200 bg-slate-50/60 text-slate-500"
+            )}
+          >
+            <span className="font-semibold">
+              {activeRow.trend === "Stable"
+                ? "Stable — not statistically significant"
+                : activeRow.trend === "—"
+                ? "Trend undetermined"
+                : `Significant ${activeRow.trend.toLowerCase()}`}
+            </span>
+            <span className="gb-num text-[11px] text-slate-500">
+              95% CI {activeRow.lrr_ci} m/yr
+            </span>
+          </div>
           <div className="overflow-hidden rounded-xl border border-slate-200">
             <div className="grid grid-cols-2 divide-x divide-y divide-slate-100">
               <Metric label="Linear rate (LRR)" value={activeRow.lrr} unit="m/yr" tone="rate" />
@@ -269,8 +292,8 @@ export function TransectInspector() {
                   <span className="text-[12px] text-slate-500">Inflection {activeRow.bp_year || "—"}</span>
                 </div>
               </div>
-              <Metric label="RF holdout RMSE" value={activeRow.rf_rmse} unit="m" wide />
             </div>
+          </div>
           </div>
         ) : (
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-[13px] text-slate-400">

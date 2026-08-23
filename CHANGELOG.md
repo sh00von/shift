@@ -5,6 +5,19 @@ All notable changes to the **SHIFT** project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-23
+
+### Added
+- **2D-ALN Engine (2D Areal-to-Linear Normalization)**: Transect-free morphodynamic polygon budgeting computing exact erosion/accretion polygons ($\text{km}^2$), reach centerline normalization ($m/\text{yr}$), sediment mass balance, and cross-method consistency matrices.
+- **Out-of-Sample Holdout Scorecard**: Robust backtesting validation engine (training on $1 \dots N-1$, predicting held-out survey $N$), evaluating **Holdout RMSE** and **Holdout MAE** per model across transects with domain guardrails ($\Delta\text{BIC} \ge 6.0$, $Z > 2.5$) and 5% parsimony tie-breaking.
+- **Interactive Documentation Suite (`/docs`)**: Built-in 31-route static documentation center featuring technical deep-dives, scientific citations, API parameter references, and a complete suite of **16 high-resolution (300 DPI) minimal monochrome figures**.
+- **Unit Test Suite**: Expanded tests covering 2D-ALN topology differencing and holdout scorecard validation (`17 passed`).
+
+### Changed
+- **Scorecard Protocol**: Streamlined from multi-fold LOOCV/rolling loops to direct out-of-sample holdout backtesting.
+- **UI Table Layouts**: Added 2D-ALN Reach table, Morphodynamic Budget grid, and Holdout RMSE leaderboard to the bottom inspector dock.
+- **Dependency Optimization**: Cleaned legacy `app/` PySide6 desktop folder and removed unused extras from `pyproject.toml`.
+
 ## [0.2.0] - 2026-08-21
 
 ### Added

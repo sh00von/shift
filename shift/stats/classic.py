@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+from scipy import stats as st
 
 from shift.models import RateResult, TransectSeries
 from shift.stats.base import BaseMethod
@@ -22,8 +23,21 @@ class DSASMethod(BaseMethod):
         nsm = float(d[-1] - d[0])
         epr = nsm / (years[-1] - years[0])
 
-        # LRR — ordinary least squares
+        # LRR — ordinary least squares, plus a 95% confidence interval on the
+        # slope and a significance flag (does the CI exclude zero?). A rate whose
+        # CI straddles zero is not statistically distinguishable from "stable".
         lrr, lrr_r2 = _ols(years, d)
+        lrr_ci_low = lrr_ci_high = None
+        lrr_significant = None
+        n = len(years)
+        if n >= 3:
+            res = st.linregress(years, d)
+            se = float(res.stderr)
+            if se > 0 and np.isfinite(se):
+                t_crit = float(st.t.ppf(0.975, df=n - 2))
+                lrr_ci_low = float(lrr - t_crit * se)
+                lrr_ci_high = float(lrr + t_crit * se)
+                lrr_significant = bool(lrr_ci_low > 0 or lrr_ci_high < 0)
 
         # WLR — weighted by 1/uncertainty²
         weights = 1.0 / np.maximum(u, 0.01) ** 2
@@ -37,6 +51,9 @@ class DSASMethod(BaseMethod):
             epr=epr,
             lrr=lrr,
             lrr_r2=lrr_r2,
+            lrr_ci_low=lrr_ci_low,
+            lrr_ci_high=lrr_ci_high,
+            lrr_significant=lrr_significant,
             wlr=wlr,
             wlr_r2=wlr_r2,
         )

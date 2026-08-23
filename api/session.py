@@ -37,7 +37,6 @@ class Session:
     run_theilsen: bool = True
     run_ransac: bool = True
     run_breakpoint: bool = True
-    run_rf: bool = True
 
     # Forecast parameters
     forecast_model: str = ""
@@ -49,10 +48,30 @@ class Session:
     color_ramp: str = "Red-Yellow-Green (DSAS)"
     shoreline_palette: str = "turbo"   # matplotlib colormap for date-coded shorelines
 
+    # 2D-ALN (2D Areal-to-Linear Normalization & 2D-ALN) parameters
+    aln2d_reach_length: float = 1000.0
+    aln2d_reach_buffer: float = 1000.0
+    aln2d_search_mask_buffer: float = 5000.0
+
+    # Model scorecard (guarded cross-validation ranking) thresholds
+    scorecard_bic_gain: float = 6.0
+    scorecard_outlier_z: float = 2.5
+    scorecard_tie_pct: float = 5.0
+
     # Pipeline outputs
     transects: Any = None            # GeoDataFrame
     series_list: list = field(default_factory=list)
     results: dict = field(default_factory=dict)
+
+    # 2D-ALN outputs
+    aln2d_erosion: Any = None         # GeoDataFrame
+    aln2d_accretion: Any = None       # GeoDataFrame
+    aln2d_reaches: Any = None         # GeoDataFrame
+    aln2d_summary: Any = None         # DataFrame
+    aln2d_validation: Any = None      # DataFrame
+
+    # Model scorecard output
+    scorecard: Any = None             # dict from shift.validation.build_scorecard
 
     # Bookkeeping
     logs: list[str] = field(default_factory=list)
