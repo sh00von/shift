@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8437:8437"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      args:
+        # Point the frontend at the backend.
+        # For Dokploy/Azure: replace with your public backend URL.
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://backend:8437}
+    ports:
+      - "4921:4921"
+    depends_on:
+      - backend
+    restart: unless-stopped
