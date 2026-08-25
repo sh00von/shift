@@ -91,10 +91,15 @@ def arima_forecast(
     horizon_years: int = 10,
     ci: float = 0.90,
 ) -> RateResult:
-    """Forecast shoreline position using ARIMA (auto-order via pmdarima AIC stepwise).
-    Produces forecast_years/distances/lower/upper on the returned RateResult."""
-    from scipy.stats import norm as _norm
+    """Forecast shoreline position using ARIMA.
 
+    Uses the annual interpolation grid so pmdarima gets evenly-spaced steps.
+    Forces d=1 (shorelines are non-stationary position data) and
+    with_intercept=True so the model always includes a drift term — without
+    this, auto_arima often selects ARIMA(0,1,0) (random walk, no drift) on
+    sparse coastal data, which produces an identical flat forecast regardless
+    of horizon length.
+    """
     years = np.array(series.years(), dtype=float)
     d = np.array(series.distances, dtype=float)
     last_year = float(years[-1])
@@ -116,11 +121,20 @@ def arima_forecast(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model = auto_arima(
-                grid_d, max_p=2, max_q=2, d=None,
-                stepwise=True, information_criterion="aic",
-                error_action="ignore", suppress_warnings=True,
+                grid_d,
+                d=1,                        # force integration — shorelines are non-stationary
+                max_p=3, max_q=3,
+                with_intercept=True,        # drift term ensures forecast moves with horizon
+                stepwise=True,
+                information_criterion="aic",
+                error_action="ignore",
+                suppress_warnings=True,
             )
-        fc, conf = model.predict(n_periods=horizon_years, return_conf_int=True, alpha=1 - ci)
+        fc, conf = model.predict(
+            n_periods=horizon_years,
+            return_conf_int=True,
+            alpha=1 - ci,
+        )
         fut_years = [last_year + i for i in range(1, horizon_years + 1)]
         result.forecast_years = fut_years
         result.forecast_distances = fc.tolist()
