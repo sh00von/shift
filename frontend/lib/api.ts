@@ -124,6 +124,10 @@ export interface TableRow {
   trend: string;
   wlr: string;
   ekf: string;
+  sens: string;
+  mk_trend: string;
+  mk_tau: string;
+  mk_p: string;
 }
 
 

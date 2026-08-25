@@ -43,6 +43,17 @@ class DSASMethod(BaseMethod):
         weights = 1.0 / np.maximum(u, 0.01) ** 2
         wlr = _wls(years, d, weights)
 
+        # Sen's slope — median of all pairwise slopes; robust to outlier surveys
+        sens = mk_tau = mk_p = None
+        if n >= 2:
+            result_ts = st.theilslopes(d, years)
+            sens = float(result_ts.slope)
+        # Mann-Kendall — non-parametric trend significance test
+        if n >= 3:
+            tau, p = st.kendalltau(years, d)
+            mk_tau = float(tau)
+            mk_p = float(p)
+
         return RateResult(
             transect_id=series.transect_id,
             method="dsas",
@@ -54,6 +65,9 @@ class DSASMethod(BaseMethod):
             lrr_ci_high=lrr_ci_high,
             lrr_significant=lrr_significant,
             wlr=wlr,
+            sens=sens,
+            mk_tau=mk_tau,
+            mk_p=mk_p,
         )
 
 

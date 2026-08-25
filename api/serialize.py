@@ -38,6 +38,15 @@ def table_rows(state: Session) -> list[dict]:
         else:
             lrr_ci = "—"
 
+        # Mann-Kendall badge: Erosion★ / Accretion★ / Stable / —
+        mk_trend = "—"
+        if cl and cl.mk_p is not None and cl.mk_tau is not None:
+            sig = cl.mk_p < 0.05
+            if sig:
+                mk_trend = "Erosion★" if cl.mk_tau < 0 else "Accretion★"
+            else:
+                mk_trend = "Stable"
+
         rows.append({
             "id": s.transect_id,
             "epr": _f(cl.epr if cl else None),
@@ -46,6 +55,10 @@ def table_rows(state: Session) -> list[dict]:
             "trend": trend,
             "wlr": _f(cl.wlr if cl else None),
             "ekf": _f(ek.ekf if ek else None),
+            "sens": _f(cl.sens if cl else None),
+            "mk_trend": mk_trend,
+            "mk_tau": _f(cl.mk_tau if cl else None, 3),
+            "mk_p": _f(cl.mk_p if cl else None, 3),
         })
     return rows
 

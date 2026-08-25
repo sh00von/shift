@@ -43,6 +43,11 @@ class RateResult:
     # EKF analysis method (timeseries.py)
     ekf: float | None = None       # Extended Kalman Filter slope (m/yr)
 
+    # Non-parametric robust stats
+    sens: float | None = None          # Sen's slope (m/yr) — median of pairwise slopes
+    mk_tau: float | None = None        # Mann-Kendall τ (−1 to +1)
+    mk_p: float | None = None          # Mann-Kendall p-value
+
     # Fitted curve points for EKF chart display
     fitted_years: list[float] = field(default_factory=list)
     fitted_values: list[float] = field(default_factory=list)

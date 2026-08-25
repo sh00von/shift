@@ -23,12 +23,14 @@ const COLS: {
   align?: "left" | "center" | "right";
   rate?: boolean;
 }[] = [
-  { key: "id", label: "T-ID", align: "center", tooltip: "Transect ID index" },
-  { key: "epr", label: "EPR", align: "right", tooltip: "End Point Rate (m/yr)", rate: true },
-  { key: "lrr", label: "LRR", align: "right", tooltip: "Linear Regression Rate (m/yr)", rate: true },
-  { key: "trend", label: "Trend", align: "center", tooltip: "LRR trend from the 95% confidence interval — Stable when the CI includes zero (not significant)" },
-  { key: "wlr", label: "WLR", align: "right", tooltip: "Weighted Linear Regression (m/yr)", rate: true },
-  { key: "ekf", label: "EKF", align: "right", tooltip: "Extended Kalman Filter slope (m/yr)", rate: true },
+  { key: "id",       label: "T-ID",     align: "center", tooltip: "Transect ID index" },
+  { key: "epr",      label: "EPR",      align: "right",  tooltip: "End Point Rate (m/yr)", rate: true },
+  { key: "lrr",      label: "LRR",      align: "right",  tooltip: "Linear Regression Rate (m/yr)", rate: true },
+  { key: "trend",    label: "Trend",    align: "center", tooltip: "LRR trend from the 95% CI — Stable when CI includes zero" },
+  { key: "wlr",      label: "WLR",      align: "right",  tooltip: "Weighted Linear Regression (m/yr)", rate: true },
+  { key: "ekf",      label: "EKF",      align: "right",  tooltip: "Extended Kalman Filter slope (m/yr)", rate: true },
+  { key: "sens",     label: "Sen's",    align: "right",  tooltip: "Sen's Slope — robust non-parametric rate (m/yr), resistant to outlier surveys", rate: true },
+  { key: "mk_trend", label: "MK Trend", align: "center", tooltip: "Mann-Kendall non-parametric trend — ★ means p<0.05 significant" },
 ];
 
 const FILTERS: { id: TableFilterKind; label: string }[] = [
@@ -49,9 +51,11 @@ const alignClass = (a?: string) =>
   a === "right" ? "text-right" : a === "center" ? "text-center" : "text-left";
 
 const TREND_STYLE: Record<string, string> = {
-  Erosion: "bg-rose-50 text-rose-700 ring-rose-200",
-  Accretion: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  Stable: "bg-slate-100 text-slate-500 ring-slate-200",
+  Erosion:     "bg-rose-50 text-rose-700 ring-rose-200",
+  Accretion:   "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  Stable:      "bg-slate-100 text-slate-500 ring-slate-200",
+  "Erosion★":  "bg-rose-100 text-rose-800 ring-rose-300",
+  "Accretion★":"bg-emerald-100 text-emerald-800 ring-emerald-300",
 };
 
 function TrendBadge({ value }: { value: string }) {
@@ -244,6 +248,8 @@ export function AttributeTable() {
                       >
                         {c.key === "trend" ? (
                           <TrendBadge value={String(r.trend)} />
+                        ) : c.key === "mk_trend" ? (
+                          <TrendBadge value={String(r.mk_trend)} />
                         ) : (
                           r[c.key] ?? "—"
                         )}

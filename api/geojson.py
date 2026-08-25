@@ -146,6 +146,9 @@ def _extract_vals(state: Session):
     if "EKF" in m:
         res_list = r.get("ekf") or []
         return [x.ekf if x else nan for x in res_list]
+    if "Sen" in m:
+        res_list = r.get("classic") or r.get("dsas") or []
+        return [x.sens if x else nan for x in res_list]
     for key in ["classic", "ekf"]:
         if key in r and r[key]:
             return [getattr(x, "lrr", getattr(x, "ekf", nan)) if x else nan for x in r[key]]
