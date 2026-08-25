@@ -71,8 +71,8 @@ const FORECAST_MODELS: string[] = [
   "EKF Rate",
   "ARIMA",
   "Holt Exponential Smoothing",
-  "Linear Regression (LRR)",
-  "Classic Endpoint Rate (EPR)",
+  "Polynomial (Quadratic)",
+  "Logarithmic Trend",
 ];
 
 const MODELS: [keyof Params, string][] = [

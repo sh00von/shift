@@ -23,8 +23,6 @@ FORECAST_MODELS = [
     "Holt Exponential Smoothing",
     "Polynomial (Quadratic)",
     "Logarithmic Trend",
-    "Linear Regression (LRR)",
-    "Classic Endpoint Rate (EPR)",
 ]
 
 
@@ -57,21 +55,13 @@ def _predict_one(model: str, series: TransectSeries, target_year: float) -> floa
             res = EKFMethod().fit(series)
             res = lin_forecast(res, series, horizon_years=horizon)
         elif model == "ARIMA":
-            res = arima_forecast(series, horizon_years=horizon)
+            res = arima_forecast(series, horizon_years=max(horizon, 1))
         elif model == "Holt Exponential Smoothing":
             res = holt_forecast(series, horizon_years=horizon)
         elif model == "Polynomial (Quadratic)":
             res = polynomial_forecast(series, horizon_years=horizon)
         elif model == "Logarithmic Trend":
             res = logarithmic_forecast(series, horizon_years=horizon)
-        elif model == "Linear Regression (LRR)":
-            res = DSASMethod().fit(series)
-            res = lin_forecast(res, series, horizon_years=horizon)
-        elif model == "Classic Endpoint Rate (EPR)":
-            res = DSASMethod().fit(series)
-            if res.epr is not None:
-                res.lrr = res.epr  # use EPR as driving rate
-            res = lin_forecast(res, series, horizon_years=horizon)
         else:
             return None
 

@@ -91,15 +91,15 @@ def arima_forecast(
     horizon_years: int = 10,
     ci: float = 0.90,
 ) -> RateResult:
-    """Forecast shoreline position using ARIMA.
+    """Forecast shoreline position using ARIMA(1,1,1) with a deterministic trend.
 
-    Uses the annual interpolation grid so pmdarima gets evenly-spaced steps.
-    Forces d=1 (shorelines are non-stationary position data) and
-    with_intercept=True so the model always includes a drift term — without
-    this, auto_arima often selects ARIMA(0,1,0) (random walk, no drift) on
-    sparse coastal data, which produces an identical flat forecast regardless
-    of horizon length.
+    Uses statsmodels ARIMA with trend='t' (linear time trend baked in), which
+    guarantees the forecast changes proportionally with the horizon. pmdarima's
+    auto-selection on sparse coastal data routinely picks ARIMA(0,1,0) with
+    zero drift, producing a flat line identical for any horizon length.
     """
+    from scipy.stats import norm as _norm
+
     years = np.array(series.years(), dtype=float)
     d = np.array(series.distances, dtype=float)
     last_year = float(years[-1])
@@ -117,29 +117,24 @@ def arima_forecast(
         return result
 
     try:
-        from pmdarima import auto_arima
+        from statsmodels.tsa.arima.model import ARIMA as _ARIMA
+        z = float(_norm.ppf(1 - (1 - ci) / 2))
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            model = auto_arima(
-                grid_d,
-                d=1,                        # force integration — shorelines are non-stationary
-                max_p=3, max_q=3,
-                with_intercept=True,        # drift term ensures forecast moves with horizon
-                stepwise=True,
-                information_criterion="aic",
-                error_action="ignore",
-                suppress_warnings=True,
-            )
-        fc, conf = model.predict(
-            n_periods=horizon_years,
-            return_conf_int=True,
-            alpha=1 - ci,
-        )
+            # trend='t' adds a deterministic linear time trend to ARIMA(1,1,1).
+            # This ensures the forecast slope is non-zero and grows with horizon.
+            fit = _ARIMA(grid_d, order=(1, 1, 1), trend="t").fit()
+
+        pred = fit.get_forecast(steps=horizon_years)
+        fc = pred.predicted_mean
+        se = pred.se_mean
+
         fut_years = [last_year + i for i in range(1, horizon_years + 1)]
         result.forecast_years = fut_years
         result.forecast_distances = fc.tolist()
-        result.forecast_lower = conf[:, 0].tolist()
-        result.forecast_upper = conf[:, 1].tolist()
+        result.forecast_lower = (fc - z * se).tolist()
+        result.forecast_upper = (fc + z * se).tolist()
     except Exception:
         _fill_flat(result, last_year, last_dist, horizon_years)
     return result
