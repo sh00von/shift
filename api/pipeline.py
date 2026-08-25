@@ -16,9 +16,12 @@ warnings.filterwarnings("ignore", message=".*UndefinedMetricWarning.*")
 from shift.geometry import cast_transects, intersect_shorelines
 from shift.timeseries import build_series
 from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast, polynomial_forecast, logarithmic_forecast
+from shift.stats.spatial import morans_i, smooth_rates
+from shift.stats.cbc import classify_all, LABEL_COLORS
 from shift.forecast import forecast as run_forecast
 from shift.forecast import kalman_forecast as run_kalman_forecast
 from shift.validation import evaluate_forecasts
+from shift.validation.montecarlo import run_montecarlo as _run_mc
 from shift.aln2d import ALN2DEngine
 
 
@@ -247,12 +250,7 @@ def generate_forecast(state: Session, progress: ProgressCB):
                     if res is not None else None
                 )
         else:
-            source = r.get("classic") or []
-            for s, res in zip(state.series_list, source):
-                fc_list.append(
-                    run_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
-                    if res is not None else None
-                )
+            fc_list = [None] * len(state.series_list)
 
         all_forecasts[model] = fc_list
 
@@ -270,6 +268,45 @@ def generate_forecast(state: Session, progress: ProgressCB):
     progress(f"Forecast complete — {len(models)} model(s), {n_total} transects.", 1.0)
     return all_forecasts
 
+
+
+def run_montecarlo(state: Session, progress: ProgressCB):
+    """Perturb shoreline positions N=500 times and compute empirical CIs."""
+    if not state.series_list:
+        raise ValueError("Run analysis first.")
+    results = _run_mc(
+        state.series_list,
+        n=500,
+        ci=state.forecast_ci,
+        progress_cb=progress,
+    )
+    state.mc_results = results
+    progress(f"Monte Carlo complete — {len(results)} transects.", 1.0)
+    return results
+
+
+def run_cbc(state: Session, progress: ProgressCB):
+    """Classify each transect's behaviour (6-class CBC)."""
+    if not state.series_list:
+        raise ValueError("Run analysis first.")
+    progress("Classifying coastal behaviour…", 0.1)
+    results = classify_all(state.series_list)
+    state.cbc_results = results
+    progress(f"CBC complete — {len(results)} transects classified.", 1.0)
+    return results
+
+
+def compute_spatial(state: Session, window: int | None = None) -> dict:
+    """Compute Moran's I and smoothed LRR rates for the current results."""
+    if not state.results or not state.series_list:
+        return {}
+    w = window if window is not None else state.spatial_smooth_window
+    classic = state.results.get("classic", [])
+    tids = [s.transect_id for s in state.series_list]
+    rates = [r.lrr if r else None for r in classic]
+    mi = morans_i(rates)
+    smoothed = smooth_rates(tids, rates, window=w)
+    return {"morans": mi, "smoothed": smoothed}
 
 
 # ── Synthetic helpers (auto-baseline + demo data) ───────────────────────────

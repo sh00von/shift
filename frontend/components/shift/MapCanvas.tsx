@@ -110,6 +110,7 @@ export default function MapCanvas({ basemap }: { basemap: string }) {
     forecast,
     aln2dChange,
     aln2dReaches,
+    cbcLayer,
     bestMethod,
     groupOrder,
     layerOrderByGroup,
@@ -254,6 +255,29 @@ export default function MapCanvas({ basemap }: { basemap: string }) {
             </div>`,
             { sticky: true }
           );
+        }}
+      />
+    ) : null,
+
+    cbc: visibility.cbc && cbcLayer?.geojson?.features?.length ? (
+      <GeoJSON
+        key={`cbc-${cbcLayer.geojson.features.length}-${opacity.cbc}`}
+        data={cbcLayer.geojson as any}
+        style={(f: any) => ({
+          color: f.properties?.color || "#94a3b8",
+          weight: 3.5,
+          opacity: opacity.cbc,
+        })}
+        onEachFeature={(f, layer) => {
+          const p = f.properties;
+          layer.bindTooltip(
+            `<div class="font-sans text-xs space-y-0.5">
+              <div class="font-bold text-slate-900">Transect #${p.transect_id}</div>
+              <div class="font-semibold" style="color:${p.color}">${p.label}</div>
+            </div>`,
+            { sticky: true }
+          );
+          layer.on("click", () => onTransectClick(p.transect_id));
         }}
       />
     ) : null,

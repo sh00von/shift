@@ -429,6 +429,25 @@ def forecast_models_endpoint(sid: str):
     return {"models": available, "selected": s.forecast_models}
 
 
+@app.get("/api/session/{sid}/layers/cbc")
+def layer_cbc(sid: str):
+    return gj.cbc_geojson(_require(sid))
+
+
+@app.get("/api/session/{sid}/diagnostics")
+def get_diagnostics(sid: str, window: int | None = None):
+    s = _require(sid)
+    return serialize.diagnostics_data(s, window=window)
+
+
+@app.post("/api/session/{sid}/diagnostics/cbc")
+def run_cbc_endpoint(sid: str):
+    s = _require(sid)
+    if not s.series_list:
+        raise HTTPException(status_code=400, detail="Run analysis first.")
+    results = pipeline.run_cbc(s, lambda m, p: None)
+    return {"n": len(results)}
+
 
 # ── WebSocket progress-streamed jobs ────────────────────────────────────────
 
@@ -515,6 +534,24 @@ async def ws_forecast(ws: WebSocket, sid: str):
         await ws.close(code=4404)
         return
     await _run_job(ws, s, pipeline.generate_forecast)
+
+
+@app.websocket("/api/session/{sid}/ws/montecarlo")
+async def ws_montecarlo(ws: WebSocket, sid: str):
+    s = store.get(sid)
+    if s is None:
+        await ws.close(code=4404)
+        return
+    await _run_job(ws, s, pipeline.run_montecarlo)
+
+
+@app.websocket("/api/session/{sid}/ws/cbc")
+async def ws_cbc(ws: WebSocket, sid: str):
+    s = store.get(sid)
+    if s is None:
+        await ws.close(code=4404)
+        return
+    await _run_job(ws, s, pipeline.run_cbc)
 
 
 # ── Exports ─────────────────────────────────────────────────────────────────

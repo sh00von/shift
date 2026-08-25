@@ -69,6 +69,15 @@ class Session:
     # Forecast evaluation output
     forecast_eval: Any = None         # dict from shift.validation.evaluate_forecasts
 
+    # Diagnostics outputs
+    mc_results: list | None = None          # Monte Carlo CI per transect
+    cbc_results: list | None = None         # Coastal Behaviour Classification per transect
+    spatial_smooth_window: int = 3          # moving-average half-window for display
+
+    # Scorecard params
+    scorecard_outlier_z: float = 2.5
+    scorecard_tie_pct: float = 0.05
+
     # Bookkeeping
     logs: list[str] = field(default_factory=list)
     last_seen: float = field(default_factory=time.time)

@@ -26,7 +26,6 @@ const COLS: {
   { key: "id",       label: "T-ID",     align: "center", tooltip: "Transect ID index" },
   { key: "epr",      label: "EPR",      align: "right",  tooltip: "End Point Rate (m/yr)", rate: true },
   { key: "lrr",      label: "LRR",      align: "right",  tooltip: "Linear Regression Rate (m/yr)", rate: true },
-  { key: "trend",    label: "Trend",    align: "center", tooltip: "LRR trend from the 95% CI — Stable when CI includes zero" },
   { key: "wlr",      label: "WLR",      align: "right",  tooltip: "Weighted Linear Regression (m/yr)", rate: true },
   { key: "ekf",      label: "EKF",      align: "right",  tooltip: "Extended Kalman Filter slope (m/yr)", rate: true },
   { key: "sens",     label: "Sen's",    align: "right",  tooltip: "Sen's Slope — robust non-parametric rate (m/yr), resistant to outlier surveys", rate: true },
@@ -246,9 +245,7 @@ export function AttributeTable() {
                             : "text-slate-600"
                         )}
                       >
-                        {c.key === "trend" ? (
-                          <TrendBadge value={String(r.trend)} />
-                        ) : c.key === "mk_trend" ? (
+                        {c.key === "mk_trend" ? (
                           <TrendBadge value={String(r.mk_trend)} />
                         ) : (
                           r[c.key] ?? "—"

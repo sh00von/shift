@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import {
   api,
+  CategoricalLayer,
   ChoroplethResponse,
   FeatureCollection,
   ForecastLayer,
@@ -20,7 +21,7 @@ const sessionGone = (e: unknown) =>
 let recovering: Promise<void> | null = null;
 
 export type RibbonTab = "project" | "map" | "analysis" | "forecast" | "view";
-export type BottomTab = "table" | "forecast" | "aln2d" | "console";
+export type BottomTab = "table" | "forecast" | "aln2d" | "diagnostics" | "console";
 export type TableFilterKind = "all" | "eroding" | "accreting";
 
 export interface LogEntry {
@@ -39,6 +40,7 @@ export interface LayerVisibility {
   forecastRibbon: boolean;
   aln2dChange: boolean;
   aln2dReaches: boolean;
+  cbc: boolean;
 }
 
 export interface LayerOpacity {
@@ -49,10 +51,11 @@ export interface LayerOpacity {
   forecast: number;
   aln2dChange: number;
   aln2dReaches: number;
+  cbc: number;
 }
 
 // ── QGIS-style layer tree: fixed groups + user-reorderable draw order ──
-export type LayerGroupId = "comparison" | "transects_rates" | "inputs" | "aln2d";
+export type LayerGroupId = "comparison" | "transects_rates" | "inputs" | "aln2d" | "diagnostics";
 
 export interface LayerGroupDef {
   id: LayerGroupId;
@@ -64,15 +67,17 @@ export const LAYER_GROUPS: LayerGroupDef[] = [
   { id: "transects_rates", label: "Transects & Rates" },
   { id: "inputs", label: "Inputs" },
   { id: "aln2d", label: "2D-ALN" },
+  { id: "diagnostics", label: "Diagnostics" },
 ];
 
 // Default group order (top of panel = drawn on top of map) and per-group layer order.
-export const DEFAULT_GROUP_ORDER: LayerGroupId[] = ["transects_rates", "inputs", "aln2d"];
+export const DEFAULT_GROUP_ORDER: LayerGroupId[] = ["transects_rates", "inputs", "aln2d", "diagnostics"];
 export const DEFAULT_LAYER_ORDER: Record<LayerGroupId, string[]> = {
   comparison: [],
   transects_rates: ["forecast", "rates", "transects"],
   inputs: ["shorelines", "baseline"],
   aln2d: ["aln2d_reaches", "aln2d_change"],
+  diagnostics: ["cbc"],
 };
 
 interface ShiftState {
@@ -110,6 +115,9 @@ interface ShiftState {
   // 2D-ALN Engine Layers & Data
   aln2dChange: ChoroplethResponse | null;
   aln2dReaches: ChoroplethResponse | null;
+
+  // Diagnostics layers
+  cbcLayer: CategoricalLayer | null;
   forecastEval: ForecastEvalView | null;
   aln2dSummary: any[] | null;
   aln2dValidation: any[] | null;
@@ -175,6 +183,7 @@ interface ShiftState {
   refreshResultsLayers: () => Promise<void>;
   refreshAln2d: () => Promise<void>;
   refreshForecastEval: () => Promise<void>;
+  refreshCbc: () => Promise<void>;
   reload: () => Promise<void>;
   recoverSession: () => Promise<void>;
 }
@@ -228,6 +237,7 @@ export const useStore = create<ShiftState>((set, get) => ({
   aln2dSummary: null,
   aln2dValidation: null,
   aln2dReachRows: null,
+  cbcLayer: null,
 
   visibility: {
     shorelines: true,
@@ -238,6 +248,7 @@ export const useStore = create<ShiftState>((set, get) => ({
     forecastRibbon: true,
     aln2dChange: true,
     aln2dReaches: true,
+    cbc: true,
   },
   opacity: {
     shorelines: 1.0,
@@ -247,6 +258,7 @@ export const useStore = create<ShiftState>((set, get) => ({
     forecast: 0.95,
     aln2dChange: 0.7,
     aln2dReaches: 0.95,
+    cbc: 0.9,
   },
 
 
@@ -256,6 +268,7 @@ export const useStore = create<ShiftState>((set, get) => ({
     transects_rates: [...DEFAULT_LAYER_ORDER.transects_rates],
     inputs: [...DEFAULT_LAYER_ORDER.inputs],
     aln2d: [...DEFAULT_LAYER_ORDER.aln2d],
+    diagnostics: [...DEFAULT_LAYER_ORDER.diagnostics],
   },
   collapsedGroups: [],
 
@@ -384,6 +397,7 @@ export const useStore = create<ShiftState>((set, get) => ({
         transects_rates: [...DEFAULT_LAYER_ORDER.transects_rates],
         inputs: [...DEFAULT_LAYER_ORDER.inputs],
         aln2d: [...DEFAULT_LAYER_ORDER.aln2d],
+        diagnostics: [...DEFAULT_LAYER_ORDER.diagnostics],
       },
       collapsedGroups: [],
     }),
@@ -477,6 +491,16 @@ export const useStore = create<ShiftState>((set, get) => ({
     }
   },
 
+  refreshCbc: async () => {
+    const sid = get().sessionId;
+    if (!sid) return;
+    try {
+      const cbcLayer = await api.cbcLayer(sid).catch(() => null);
+      set({ cbcLayer });
+    } catch (e) {
+      console.error("Failed to refresh CBC layer:", e);
+    }
+  },
 
   reload: async () => {
     const sid = get().sessionId;

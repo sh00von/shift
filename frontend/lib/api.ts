@@ -131,6 +131,71 @@ export interface TableRow {
 }
 
 
+export interface ScatterPoint {
+  transect_id: number;
+  epr: number;
+  lrr: number;
+  mk_trend: string;
+  is_outlier: boolean;
+}
+
+export interface RegLine {
+  slope: number;
+  intercept: number;
+  r2: number;
+  x: [number, number];
+  y: [number, number];
+}
+
+export interface MoransI {
+  I: number | null;
+  expected_I: number | null;
+  z_score: number | null;
+  p_value: number | null;
+  interpretation: string;
+}
+
+export interface SmoothedRate {
+  transect_id: number;
+  smoothed_lrr: number | null;
+}
+
+export interface CbcRow {
+  transect_id: number;
+  label: string;
+  color: string;
+}
+
+export interface CbcLegendItem {
+  label: string;
+  color: string;
+  count: number;
+}
+
+export interface McRow {
+  transect_id: number;
+  lrr_mc_low: number | null;
+  lrr_mc_high: number | null;
+  sens_mc_low: number | null;
+  sens_mc_high: number | null;
+  n_valid: number;
+}
+
+export interface DiagnosticsData {
+  available: boolean;
+  scatter: ScatterPoint[];
+  reg_line: RegLine | null;
+  outlier_count: number;
+  morans: MoransI;
+  smoothed: SmoothedRate[];
+  smooth_window: number;
+  cbc_rows: CbcRow[];
+  cbc_summary: Record<string, number>;
+  cbc_legend: CbcLegendItem[];
+  mc_rows: McRow[];
+  mc_available: boolean;
+}
+
 export interface ChartTrace {
   name: string;
   kind: string;
@@ -304,8 +369,19 @@ export const api = {
     fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/change`).then(
       j<ChoroplethResponse>
     ),
+  cbcLayer: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/layers/cbc`).then(j<CategoricalLayer>),
+
   forecastEval: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/forecast/eval`).then(j<ForecastEvalView>),
+
+  diagnostics: (sid: string, window?: number) => {
+    const q = window !== undefined ? `?window=${window}` : "";
+    return fetch(`${API_BASE}/api/session/${sid}/diagnostics${q}`).then(j<DiagnosticsData>);
+  },
+
+  runCbc: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/diagnostics/cbc`, { method: "POST" }).then(j<{ n: number }>),
   aln2dSummary: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/aln2d/summary`).then(
       j<{ rows: Aln2dSummaryRow[] }>
@@ -351,7 +427,7 @@ export const api = {
   },
 };
 
-export type JobKind = "preview" | "analyze" | "forecast" | "aln2d";
+export type JobKind = "preview" | "analyze" | "forecast" | "aln2d" | "montecarlo" | "cbc";
 
 
 export interface ProgressFrame {

@@ -58,6 +58,7 @@ const GROUP_ICONS: Record<LayerGroupId, ReactNode> = {
   transects_rates: <Activity className="h-3 w-3" />,
   inputs:          <Layers className="h-3 w-3" />,
   aln2d:           <TrendingUp className="h-3 w-3" />,
+  diagnostics:     <BarChart3 className="h-3 w-3" />,
 };
 
 interface LayerDef {
@@ -151,6 +152,7 @@ export function LayersTOC() {
       case "forecast":      return forecast?.line ?? null;
       case "aln2d_change":  return store.aln2dChange?.geojson ?? null;
       case "aln2d_reaches": return store.aln2dReaches?.geojson ?? null;
+      case "cbc":           return store.cbcLayer?.geojson ?? null;
       default:              return null;
     }
   };
@@ -213,6 +215,7 @@ export function LayersTOC() {
     else if (l.id === "forecast")  patch.forecast = null;
     else if (l.id === "aln2d_change")  patch.aln2dChange = null;
     else if (l.id === "aln2d_reaches") patch.aln2dReaches = null;
+    else if (l.id === "cbc")           patch.cbcLayer = null;
     useStore.setState(patch as any);
     toast.info(`Removed "${l.name}" from the map`);
   };
@@ -452,6 +455,38 @@ export function LayersTOC() {
         <div className="space-y-1.5">
           <span className="gb-metric-label">Migration Rate</span>
           <GradientBar gradient={store.aln2dReaches.legend.gradient} min={store.aln2dReaches.legend.min} max={store.aln2dReaches.legend.max} unit=" m/yr" midLabel="0.0" />
+        </div>
+      ) : undefined,
+    },
+    {
+      id: "cbc",
+      name: "Coastal Behaviour (CBC)",
+      swatch: (
+        <Swatch>
+          <span className="flex gap-0.5">
+            {["#ef4444","#10b981","#8b5cf6","#f59e0b","#06b6d4","#94a3b8"].map((c) => (
+              <span key={c} className="block h-3 w-1 rounded-sm" style={{ background: c }} />
+            ))}
+          </span>
+        </Swatch>
+      ),
+      visKeys: ["cbc"],
+      opacityKey: "cbc",
+      available: Boolean(store.cbcLayer?.geojson?.features?.length),
+      count: store.cbcLayer?.geojson?.features?.length ?? 0,
+      meta: "Run CBC in Diagnostics tab",
+      legend: store.cbcLayer?.legend ? (
+        <div className="space-y-1.5">
+          <span className="gb-metric-label">Behaviour Class</span>
+          <div className="flex flex-col gap-1">
+            {store.cbcLayer.legend.categories.map((cat) => (
+              <div key={cat.label} className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-sm" style={{ background: cat.color }} />
+                <span className="text-[11px] text-slate-700">{cat.label}</span>
+                <span className="text-[10px] text-slate-400">{cat.count}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : undefined,
     },
