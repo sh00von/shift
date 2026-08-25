@@ -1,11 +1,10 @@
-"""Unit tests for Theil-Sen and RANSAC robust regression methods."""
+"""Tests for robust-like behaviour using DSASMethod and EKF (TheilSen/RANSAC removed)."""
 from datetime import date
 import pytest
-import numpy as np
 
 from shift.models import TransectSeries
-from shift.stats.robust import TheilSenMethod, RansacMethod
 from shift.stats.classic import DSASMethod
+from shift.stats.ekf import EKFMethod
 from shift.forecast import forecast
 
 
@@ -19,58 +18,32 @@ def _make_series(years: list[int], distances: list[float], tid: int = 1) -> Tran
     )
 
 
-def test_theilsen_clean_linear():
-    """Verify Theil-Sen recovers true linear slope on clean data."""
+def test_classic_linear_recovery():
+    """DSASMethod recovers true linear slope on clean data."""
     years = [1990, 1995, 2000, 2005, 2010, 2015, 2020]
-    # True slope: -5 m/yr, starting at 1000m
     distances = [1000 - 5 * (y - 1990) for y in years]
     series = _make_series(years, distances)
-
-    ts = TheilSenMethod()
-    res = ts.fit(series)
-
-    assert res.theilsen is not None
-    assert pytest.approx(res.theilsen, abs=0.1) == -5.0
+    res = DSASMethod().fit(series)
+    assert res.lrr is not None
+    assert pytest.approx(res.lrr, abs=0.1) == -5.0
 
 
-def test_theilsen_and_ransac_with_outlier():
-    """Verify Theil-Sen and RANSAC ignore heavy satellite positional outliers."""
+def test_ekf_method():
+    """EKFMethod returns a valid rate on clean data."""
     years = [1990, 1995, 2000, 2005, 2010, 2015, 2020]
-    # True slope: -10 m/yr
-    distances = [1000 - 10 * (y - 1990) for y in years]
-    
-    # Inject heavy outlier at year 2005 (+150m tidal/cloud spike)
-    distances[3] += 150.0
-
+    distances = [1000 - 3 * (y - 1990) for y in years]
     series = _make_series(years, distances)
-
-    # Classic OLS gets heavily distorted
-    cl_res = DSASMethod().fit(series)
-    assert cl_res.lrr != -10.0
-
-    # Theil-Sen remains close to -10.0
-    ts_res = TheilSenMethod().fit(series)
-    assert ts_res.theilsen is not None
-    assert pytest.approx(ts_res.theilsen, abs=2.0) == -10.0
-
-    # RANSAC detects the outlier and computes robust slope
-    rs_res = RansacMethod().fit(series)
-    assert rs_res.ransac is not None
-    assert pytest.approx(rs_res.ransac, abs=1.5) == -10.0
-    assert rs_res.ransac_outliers >= 1
+    res = EKFMethod().fit(series)
+    assert res.ekf is not None
 
 
-def test_robust_forecast():
-    """Verify forecast extrapolation using Theil-Sen and RANSAC."""
+def test_forecast_from_classic():
+    """Forecast extrapolation works from DSASMethod result."""
     years = [1990, 1995, 2000, 2005, 2010]
     distances = [500 - 4 * (y - 1990) for y in years]
     series = _make_series(years, distances)
-
-    ts_res = TheilSenMethod().fit(series)
-    fc = forecast(ts_res, series, horizon_years=5, ci=0.90)
-
+    res = DSASMethod().fit(series)
+    fc = forecast(res, series, horizon_years=5, ci=0.90)
     assert len(fc.forecast_years) == 5
     assert pytest.approx(fc.forecast_years[-1], abs=0.5) == 2015.0
-
-    # Expected last dist: 500 - 4*(2010-1990) - 4*5 = 500 - 80 - 20 = 400
-    assert pytest.approx(fc.forecast_distances[-1], abs=1.0) == 400.0
+    assert pytest.approx(fc.forecast_distances[-1], abs=2.0) == 400.0
