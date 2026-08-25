@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore", message=".*UndefinedMetricWarning.*")
 
 from shift.geometry import cast_transects, intersect_shorelines
 from shift.timeseries import build_series
-from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast
+from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast, polynomial_forecast, logarithmic_forecast
 from shift.forecast import forecast as run_forecast
 from shift.forecast import kalman_forecast as run_kalman_forecast
 from shift.validation import evaluate_forecasts
@@ -233,6 +233,12 @@ def generate_forecast(state: Session, progress: ProgressCB):
         elif "Holt" in model:
             for s in state.series_list:
                 fc_list.append(holt_forecast(s, horizon_years=state.forecast_horizon, ci=state.forecast_ci))
+        elif "Polynomial" in model:
+            for s in state.series_list:
+                fc_list.append(polynomial_forecast(s, horizon_years=state.forecast_horizon, ci=state.forecast_ci))
+        elif "Logarithmic" in model:
+            for s in state.series_list:
+                fc_list.append(logarithmic_forecast(s, horizon_years=state.forecast_horizon, ci=state.forecast_ci))
         elif "EKF" in model:
             source = r.get("ekf") or r.get("classic") or []
             for s, res in zip(state.series_list, source):
@@ -250,10 +256,11 @@ def generate_forecast(state: Session, progress: ProgressCB):
 
         all_forecasts[model] = fc_list
 
-    # Use first model as the primary map layer
+    # Use first model as the primary map layer; reset the active display model.
     primary = all_forecasts.get(models[0], [])
     state.results["forecast"] = primary
     state.results["forecasts"] = all_forecasts
+    state.forecast_model = models[0]
 
     # Hindcast evaluation — tells user which forecast model is most accurate
     progress("Running hindcast evaluation across forecast models…", 0.65)

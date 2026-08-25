@@ -38,6 +38,7 @@ class Session:
 
     # Forecast parameters
     forecast_models: list = field(default_factory=lambda: ["Kalman Filter (DSAS)"])
+    forecast_model: str = "Kalman Filter (DSAS)"   # currently displayed model on the map
     forecast_horizon: int = 10
     forecast_ci: float = 0.90
 

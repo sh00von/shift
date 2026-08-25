@@ -21,6 +21,8 @@ FORECAST_MODELS = [
     "EKF Rate",
     "ARIMA",
     "Holt Exponential Smoothing",
+    "Polynomial (Quadratic)",
+    "Logarithmic Trend",
     "Linear Regression (LRR)",
     "Classic Endpoint Rate (EPR)",
 ]
@@ -38,7 +40,7 @@ def _truncated(series: TransectSeries) -> TransectSeries:
 
 def _predict_one(model: str, series: TransectSeries, target_year: float) -> float | None:
     """Run model on series, forecast to target_year, return predicted position."""
-    from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast
+    from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast, polynomial_forecast, logarithmic_forecast
     from shift.forecast.extrapolate import forecast as lin_forecast, kalman_forecast
 
     years = np.array(series.years(), dtype=float)
@@ -58,6 +60,10 @@ def _predict_one(model: str, series: TransectSeries, target_year: float) -> floa
             res = arima_forecast(series, horizon_years=horizon)
         elif model == "Holt Exponential Smoothing":
             res = holt_forecast(series, horizon_years=horizon)
+        elif model == "Polynomial (Quadratic)":
+            res = polynomial_forecast(series, horizon_years=horizon)
+        elif model == "Logarithmic Trend":
+            res = logarithmic_forecast(series, horizon_years=horizon)
         elif model == "Linear Regression (LRR)":
             res = DSASMethod().fit(series)
             res = lin_forecast(res, series, horizon_years=horizon)

@@ -176,6 +176,123 @@ def holt_forecast(
     return result
 
 
+def polynomial_forecast(
+    series: TransectSeries,
+    horizon_years: int = 10,
+    ci: float = 0.90,
+    degree: int = 2,
+) -> RateResult:
+    """Forecast via polynomial (quadratic by default) regression on decimal years.
+
+    Fits distance ~ β₀ + β₁·t + β₂·t² using ordinary least squares, then
+    extrapolates forward. CI is derived from the prediction variance of the
+    polynomial fit. Useful when erosion/accretion is accelerating or decelerating.
+    """
+    from scipy.stats import t as t_dist
+
+    years = np.array(series.years(), dtype=float)
+    d = np.array(series.distances, dtype=float)
+    last_year = float(years[-1])
+
+    result = RateResult(transect_id=series.transect_id, method="polynomial")
+    fut_years = [last_year + i for i in range(1, horizon_years + 1)]
+
+    if len(years) < degree + 1:
+        _fill_flat(result, last_year, float(d[-1]), horizon_years)
+        return result
+
+    try:
+        # Centre years for numerical stability
+        t0 = years.mean()
+        t_cent = years - t0
+        V = np.vander(t_cent, N=degree + 1, increasing=True)   # design matrix
+        coeffs, residuals, rank, _ = np.linalg.lstsq(V, d, rcond=None)
+
+        n, p = len(years), degree + 1
+        dof = max(n - p, 1)
+        if residuals.size:
+            sigma2 = float(residuals[0]) / dof
+        else:
+            sigma2 = float(np.sum((d - V @ coeffs) ** 2)) / dof
+        sigma2 = max(sigma2, 1e-6)
+
+        VtV_inv = np.linalg.pinv(V.T @ V)
+        t_crit = float(t_dist.ppf(1 - (1 - ci) / 2, df=dof))
+
+        fut_cent = np.array(fut_years) - t0
+        V_fut = np.vander(fut_cent, N=degree + 1, increasing=True)
+        fc = (V_fut @ coeffs).tolist()
+        pred_vars = np.array([float(v @ VtV_inv @ v) * sigma2 for v in V_fut])
+        margin = t_crit * np.sqrt(pred_vars + sigma2)
+
+        result.forecast_years = fut_years
+        result.forecast_distances = fc
+        result.forecast_lower = (np.array(fc) - margin).tolist()
+        result.forecast_upper = (np.array(fc) + margin).tolist()
+    except Exception:
+        _fill_flat(result, last_year, float(d[-1]), horizon_years)
+    return result
+
+
+def logarithmic_forecast(
+    series: TransectSeries,
+    horizon_years: int = 10,
+    ci: float = 0.90,
+) -> RateResult:
+    """Forecast via logarithmic trend: distance ~ a + b·log(t - t₀ + 1).
+
+    Models beaches that erode rapidly then reach a new equilibrium — a physically
+    motivated pattern in post-storm recovery and chronic erosion with feedback.
+    Falls back to linear extrapolation if the log fit is degenerate.
+    """
+    from scipy.stats import t as t_dist
+    from scipy.optimize import curve_fit
+
+    years = np.array(series.years(), dtype=float)
+    d = np.array(series.distances, dtype=float)
+    last_year = float(years[-1])
+
+    result = RateResult(transect_id=series.transect_id, method="logarithmic")
+    fut_years = [last_year + i for i in range(1, horizon_years + 1)]
+
+    if len(years) < 3:
+        _fill_flat(result, last_year, float(d[-1]), horizon_years)
+        return result
+
+    try:
+        t0 = float(years[0])
+        # Shift so log argument is always ≥ 1
+        x = years - t0 + 1.0
+
+        def log_model(x_, a, b):
+            return a + b * np.log(x_)
+
+        popt, pcov = curve_fit(log_model, x, d, maxfev=2000)
+        a, b = float(popt[0]), float(popt[1])
+
+        fitted = log_model(x, a, b)
+        n, p = len(years), 2
+        dof = max(n - p, 1)
+        sigma2 = max(float(np.sum((d - fitted) ** 2)) / dof, 1e-6)
+        t_crit = float(t_dist.ppf(1 - (1 - ci) / 2, df=dof))
+
+        x_fut = np.array(fut_years) - t0 + 1.0
+        fc = log_model(x_fut, a, b).tolist()
+
+        # Approximate prediction interval from parameter covariance
+        J = np.column_stack([np.ones_like(x_fut), np.log(x_fut)])
+        pred_vars = np.array([float(j @ pcov @ j) for j in J])
+        margin = t_crit * np.sqrt(np.maximum(pred_vars, 0) + sigma2)
+
+        result.forecast_years = fut_years
+        result.forecast_distances = fc
+        result.forecast_lower = (np.array(fc) - margin).tolist()
+        result.forecast_upper = (np.array(fc) + margin).tolist()
+    except Exception:
+        _fill_flat(result, last_year, float(d[-1]), horizon_years)
+    return result
+
+
 def _fill_flat(result: RateResult, last_year: float, last_dist: float, horizon: int) -> None:
     result.forecast_years = [last_year + i for i in range(1, horizon + 1)]
     result.forecast_distances = [last_dist] * horizon

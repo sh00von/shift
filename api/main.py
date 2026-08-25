@@ -67,7 +67,7 @@ def _params(s: Session) -> dict:
         "aln2d_reach_length": s.aln2d_reach_length, "aln2d_reach_buffer": s.aln2d_reach_buffer,
         "aln2d_search_mask_buffer": s.aln2d_search_mask_buffer,
         "has_forecast_eval": s.forecast_eval is not None,
-        "forecast_models": s.forecast_models, "forecast_horizon": s.forecast_horizon,
+        "forecast_models": s.forecast_models, "forecast_model": s.forecast_model, "forecast_horizon": s.forecast_horizon,
         "forecast_ci": s.forecast_ci, "style_metric": s.style_metric, "color_ramp": s.color_ramp,
         "shoreline_palette": s.shoreline_palette,
         "date_col": s.date_col, "date_format": s.date_format, "uncertainty_col": s.uncertainty_col,
@@ -91,6 +91,7 @@ class ParamPatch(BaseModel):
     aln2d_reach_buffer: float | None = None
     aln2d_search_mask_buffer: float | None = None
     forecast_models: list | None = None
+    forecast_model: str | None = None
     forecast_horizon: int | None = None
     forecast_ci: float | None = None
     style_metric: str | None = None

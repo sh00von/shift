@@ -254,7 +254,13 @@ def forecast_geojson(state: Session) -> dict:
     empty = {"line": None, "ribbon": None, "target_year": None, "ci_pct": None, "model": None}
     if not state.results or state.transects is None:
         return empty
-    fc_list = state.results.get("forecast")
+    # Use the user-selected model; fall back to first available.
+    forecasts_by_model: dict = state.results.get("forecasts") or {}
+    selected = state.forecast_model or (state.forecast_models[0] if state.forecast_models else None)
+    if selected and selected in forecasts_by_model:
+        fc_list = forecasts_by_model[selected]
+    else:
+        fc_list = state.results.get("forecast")
     if not fc_list:
         return empty
 
@@ -301,7 +307,7 @@ def forecast_geojson(state: Session) -> dict:
         "ribbon": ribbon_fc,
         "target_year": target_year,
         "ci_pct": int(state.forecast_ci * 100),
-        "model": state.forecast_models[0] if state.forecast_models else "Kalman Filter (DSAS)",
+        "model": selected or "Kalman Filter (DSAS)",
     }
 
 
