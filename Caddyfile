@@ -1,0 +1,11 @@
+:80 {
+    # Backend — REST + WebSocket (all under /api/)
+    handle /api/* {
+        reverse_proxy backend:8437
+    }
+
+    # Frontend — everything else
+    handle {
+        reverse_proxy frontend:4921
+    }
+}

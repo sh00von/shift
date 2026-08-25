@@ -1,6 +1,7 @@
 // SHIFT API client — talks to the FastAPI backend.
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+// Empty string = relative URLs (production via reverse proxy).
+// Set NEXT_PUBLIC_API_BASE=http://localhost:8437 in .env.local for local dev.
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -361,7 +362,9 @@ export function runJob(
   kind: JobKind,
   onProgress: (f: ProgressFrame) => void
 ): Promise<void> {
-  const wsBase = API_BASE.replace(/^http/, "ws");
+  const wsBase = API_BASE
+    ? API_BASE.replace(/^http/, "ws")
+    : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
   const ws = new WebSocket(`${wsBase}/api/session/${sid}/ws/${kind}`);
   return new Promise((resolve, reject) => {
     ws.onmessage = (ev) => {

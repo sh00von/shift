@@ -7,10 +7,6 @@ RUN npm ci
 
 COPY . .
 
-# NEXT_PUBLIC_* vars are baked in at build time
-ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
-ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
-
 RUN npm run build
 
 # ── runtime ──────────────────────────────────────────────────────────────────
