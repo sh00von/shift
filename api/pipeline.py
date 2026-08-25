@@ -15,21 +15,17 @@ warnings.filterwarnings("ignore", message=".*UndefinedMetricWarning.*")
 
 from shift.geometry import cast_transects, intersect_shorelines
 from shift.timeseries import build_series
-from shift.stats import (
-    BreakpointMethod,
-    DSASMethod,
-    TheilSenMethod,
-    RansacMethod,
-)
+from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast
 from shift.forecast import forecast as run_forecast
 from shift.forecast import kalman_forecast as run_kalman_forecast
-from shift.validation import build_scorecard
+from shift.validation import evaluate_forecasts
 from shift.aln2d import ALN2DEngine
 
 
 from api.session import Session
 
 ProgressCB = Callable[[str, float], None]
+
 
 
 
@@ -160,25 +156,13 @@ def run_analysis(state: Session, progress: ProgressCB):
         m = DSASMethod()
         results["classic"] = [m.fit(s) for s in series_list]
 
-
-    if state.run_theilsen:
-        progress(f"Theil-Sen robust estimator on {n_total} transects…", 0.55)
-        m = TheilSenMethod()
-        results["theilsen"] = [m.fit(s) for s in series_list]
-
-    if state.run_ransac:
-        progress(f"RANSAC robust regression on {n_total} transects…", 0.65)
-        m = RansacMethod()
-        results["ransac"] = [m.fit(s) for s in series_list]
-
-    if state.run_breakpoint:
-        progress(f"Breakpoint regime detection across {n_total} transects…", 0.75)
-        m = BreakpointMethod()
-        results["breakpoint"] = [m.fit(s) for s in series_list]
+    if state.run_ekf:
+        progress(f"Extended Kalman Filter on {n_total} transects…", 0.60)
+        m = EKFMethod()
+        results["ekf"] = [m.fit(s) for s in series_list]
 
     state.results = results
-    # Forecast is NOT auto-generated — the user triggers it explicitly via the
-    # Forecast action once rates are computed.
+
     progress(f"Analysis complete — {n_total} transects processed.", 1.0)
     return series_list, results, transects
 
@@ -222,76 +206,63 @@ def run_aln2d(state: Session, progress: ProgressCB):
 
 
 def generate_forecast(state: Session, progress: ProgressCB):
+    """Run all selected forecast models and evaluate each with a hindcast."""
     if not state.results or not state.series_list:
-        return []
+        return {}
 
-    choice = state.forecast_model or "Breakpoint (Post-break Rate)"
+    models = state.forecast_models or ["Kalman Filter (DSAS)"]
     n_total = len(state.series_list)
-    progress(f"Forecasting {state.forecast_horizon} years using {choice}…", 0.3)
-
     r = state.results
-    # Kalman filter derives its own position + rate straight from each series
-    # (the DSAS forecasting approach) — it only needs a RateResult shell to
-    # attach the forecast fields to, so use whatever rate result is available.
-    if "Kalman" in choice:
-        source = (
-            r.get("classic") or r.get("theilsen") or r.get("ransac")
-            or r.get("breakpoint") or []
-        )
-        forecast_results = []
-        for s, res in zip(state.series_list, source):
-            forecast_results.append(
-                run_kalman_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
-                if res is not None else None
-            )
-        state.results["forecast"] = forecast_results
-        progress(f"Kalman-filter forecast complete for {n_total} transects.", 1.0)
-        return forecast_results
+    all_forecasts: dict = {}
 
-    if "Breakpoint" in choice:
-        source = r.get("breakpoint") or r.get("classic") or []
-    elif "Theil-Sen" in choice:
-        source = r.get("theilsen") or r.get("classic") or []
-    elif "RANSAC" in choice:
-        source = r.get("ransac") or r.get("classic") or []
-    elif "Linear" in choice or "LRR" in choice:
-        source = r.get("classic") or []
-    elif "Endpoint" in choice or "EPR" in choice:
-        source = r.get("classic") or []
-    else:
-        source = r.get("breakpoint") or r.get("classic") or []
+    for idx, model in enumerate(models):
+        base_prog = 0.05 + 0.55 * idx / len(models)
+        progress(f"Forecasting {state.forecast_horizon} yr — {model}…", base_prog)
+        fc_list = []
 
-    forecast_results = []
-    for s, res in zip(state.series_list, source):
-        if res is not None:
-            forecast_results.append(
-                run_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
-            )
+        if "Kalman" in model:
+            source = r.get("classic") or r.get("ekf") or []
+            for s, res in zip(state.series_list, source):
+                fc_list.append(
+                    run_kalman_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
+                    if res is not None else None
+                )
+        elif "ARIMA" in model:
+            for s in state.series_list:
+                fc_list.append(arima_forecast(s, horizon_years=state.forecast_horizon, ci=state.forecast_ci))
+        elif "Holt" in model:
+            for s in state.series_list:
+                fc_list.append(holt_forecast(s, horizon_years=state.forecast_horizon, ci=state.forecast_ci))
+        elif "EKF" in model:
+            source = r.get("ekf") or r.get("classic") or []
+            for s, res in zip(state.series_list, source):
+                fc_list.append(
+                    run_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
+                    if res is not None else None
+                )
         else:
-            forecast_results.append(None)
+            source = r.get("classic") or []
+            for s, res in zip(state.series_list, source):
+                fc_list.append(
+                    run_forecast(res, s, horizon_years=state.forecast_horizon, ci=state.forecast_ci)
+                    if res is not None else None
+                )
 
-    state.results["forecast"] = forecast_results
-    progress(f"Forecast complete for {n_total} transects.", 1.0)
-    return forecast_results
+        all_forecasts[model] = fc_list
 
+    # Use first model as the primary map layer
+    primary = all_forecasts.get(models[0], [])
+    state.results["forecast"] = primary
+    state.results["forecasts"] = all_forecasts
 
-def run_scorecard(state: Session, progress: ProgressCB):
-    """Out-of-sample cross-validation ranking of all rate/position methods."""
-    if not state.series_list:
-        raise ValueError("Run the analysis first — no time series to score.")
-    progress("Scoring methods with LOOCV + rolling-origin cross-validation…", 0.05)
-    result = build_scorecard(
-        state.series_list,
-        thresholds={
-            "bic_gain": state.scorecard_bic_gain,
-            "outlier_z": state.scorecard_outlier_z,
-            "tie_pct": state.scorecard_tie_pct,
-        },
-        progress=progress,
-    )
-    state.scorecard = result
-    progress(result["headline"], 1.0)
-    return result
+    # Hindcast evaluation — tells user which forecast model is most accurate
+    progress("Running hindcast evaluation across forecast models…", 0.65)
+    eval_result = evaluate_forecasts(state.series_list, models, progress=lambda m, p: progress(m, 0.65 + 0.30 * p))
+    state.forecast_eval = eval_result
+
+    progress(f"Forecast complete — {len(models)} model(s), {n_total} transects.", 1.0)
+    return all_forecasts
+
 
 
 # ── Synthetic helpers (auto-baseline + demo data) ───────────────────────────

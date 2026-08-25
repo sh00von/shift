@@ -44,8 +44,7 @@ export const DOCS_NAV: DocSection[] = [
     title: "Methods Reference",
     pages: [
       { slug: "methods/dsas-classic", title: "DSAS Classic (EPR/LRR/WLR/NSM/SCE)" },
-      { slug: "methods/robust", title: "Robust: Theil-Sen & RANSAC" },
-      { slug: "methods/breakpoint", title: "Breakpoint Detection" },
+      { slug: "methods/ekf", title: "Extended Kalman Filter (EKF)" },
       { slug: "methods/forecast-models", title: "Forecast Models" },
       { slug: "methods/2d-aln", title: "2D-ALN Method & Lineage" },
       { slug: "methods/scorecard", title: "Model Scorecard (Cross-Validation)" },

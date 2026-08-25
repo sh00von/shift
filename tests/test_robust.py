@@ -31,7 +31,6 @@ def test_theilsen_clean_linear():
 
     assert res.theilsen is not None
     assert pytest.approx(res.theilsen, abs=0.1) == -5.0
-    assert pytest.approx(res.theilsen_r2, abs=0.01) == 1.0
 
 
 def test_theilsen_and_ransac_with_outlier():

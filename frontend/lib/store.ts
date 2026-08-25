@@ -4,12 +4,11 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import {
   api,
-  CategoricalLayer,
   ChoroplethResponse,
   FeatureCollection,
   ForecastLayer,
+  ForecastEvalView,
   Params,
-  ScorecardView,
 } from "./api";
 
 // True when an API error means the backend lost our in-memory session
@@ -21,8 +20,8 @@ const sessionGone = (e: unknown) =>
 let recovering: Promise<void> | null = null;
 
 export type RibbonTab = "project" | "map" | "analysis" | "forecast" | "view";
-export type BottomTab = "table" | "diagnostics" | "scorecard" | "aln2d" | "console";
-export type TableFilterKind = "all" | "eroding" | "accreting" | "changepoints";
+export type BottomTab = "table" | "forecast" | "aln2d" | "console";
+export type TableFilterKind = "all" | "eroding" | "accreting";
 
 export interface LogEntry {
   id: string;
@@ -40,7 +39,6 @@ export interface LayerVisibility {
   forecastRibbon: boolean;
   aln2dChange: boolean;
   aln2dReaches: boolean;
-  bestMethod: boolean;
 }
 
 export interface LayerOpacity {
@@ -51,7 +49,6 @@ export interface LayerOpacity {
   forecast: number;
   aln2dChange: number;
   aln2dReaches: number;
-  bestMethod: number;
 }
 
 // ── QGIS-style layer tree: fixed groups + user-reorderable draw order ──
@@ -70,9 +67,9 @@ export const LAYER_GROUPS: LayerGroupDef[] = [
 ];
 
 // Default group order (top of panel = drawn on top of map) and per-group layer order.
-export const DEFAULT_GROUP_ORDER: LayerGroupId[] = ["comparison", "transects_rates", "inputs", "aln2d"];
+export const DEFAULT_GROUP_ORDER: LayerGroupId[] = ["transects_rates", "inputs", "aln2d"];
 export const DEFAULT_LAYER_ORDER: Record<LayerGroupId, string[]> = {
-  comparison: ["best_method"],
+  comparison: [],
   transects_rates: ["forecast", "rates", "transects"],
   inputs: ["shorelines", "baseline"],
   aln2d: ["aln2d_reaches", "aln2d_change"],
@@ -113,8 +110,7 @@ interface ShiftState {
   // 2D-ALN Engine Layers & Data
   aln2dChange: ChoroplethResponse | null;
   aln2dReaches: ChoroplethResponse | null;
-  scorecard: ScorecardView | null;
-  bestMethod: CategoricalLayer | null;
+  forecastEval: ForecastEvalView | null;
   aln2dSummary: any[] | null;
   aln2dValidation: any[] | null;
   aln2dReachRows: any[] | null;
@@ -126,6 +122,7 @@ interface ShiftState {
   groupOrder: LayerGroupId[];
   layerOrderByGroup: Record<LayerGroupId, string[]>;
   collapsedGroups: LayerGroupId[];
+
 
   // Inspection & Filtering
   selectedTransect: number | null;
@@ -177,7 +174,7 @@ interface ShiftState {
   refreshTransects: () => Promise<void>;
   refreshResultsLayers: () => Promise<void>;
   refreshAln2d: () => Promise<void>;
-  refreshScorecard: () => Promise<void>;
+  refreshForecastEval: () => Promise<void>;
   reload: () => Promise<void>;
   recoverSession: () => Promise<void>;
 }
@@ -227,8 +224,7 @@ export const useStore = create<ShiftState>((set, get) => ({
 
   aln2dChange: null,
   aln2dReaches: null,
-  scorecard: null,
-  bestMethod: null,
+  forecastEval: null,
   aln2dSummary: null,
   aln2dValidation: null,
   aln2dReachRows: null,
@@ -242,7 +238,6 @@ export const useStore = create<ShiftState>((set, get) => ({
     forecastRibbon: true,
     aln2dChange: true,
     aln2dReaches: true,
-    bestMethod: true,
   },
   opacity: {
     shorelines: 1.0,
@@ -252,8 +247,8 @@ export const useStore = create<ShiftState>((set, get) => ({
     forecast: 0.95,
     aln2dChange: 0.7,
     aln2dReaches: 0.95,
-    bestMethod: 0.95,
   },
+
 
   groupOrder: [...DEFAULT_GROUP_ORDER],
   layerOrderByGroup: {
@@ -332,18 +327,11 @@ export const useStore = create<ShiftState>((set, get) => ({
 
   setAllVisibility: (v) =>
     set((s) => ({
-      visibility: {
-        shorelines: v,
-        baseline: v,
-        transects: v,
-        rates: v,
-        forecastLine: v,
-        forecastRibbon: v,
-        aln2dChange: v,
-        aln2dReaches: v,
-        bestMethod: v,
-      },
+      visibility: (Object.fromEntries(
+        Object.keys(s.visibility).map((k) => [k, v])
+      ) as unknown) as LayerVisibility,
     })),
+
 
   setLayerOpacity: (key, v) =>
     set((s) => ({ opacity: { ...s.opacity, [key]: v } })),
@@ -478,17 +466,14 @@ export const useStore = create<ShiftState>((set, get) => ({
     }
   },
 
-  refreshScorecard: async () => {
+  refreshForecastEval: async () => {
     const sid = get().sessionId;
     if (!sid) return;
     try {
-      const [view, best] = await Promise.all([
-        api.scorecard(sid).catch(() => null),
-        api.bestMethod(sid).catch(() => null),
-      ]);
-      set({ scorecard: view, bestMethod: best });
+      const ev = await api.forecastEval(sid).catch(() => null);
+      set({ forecastEval: ev });
     } catch (e) {
-      console.error("Failed to refresh scorecard:", e);
+      console.error("Failed to refresh forecast eval:", e);
     }
   },
 
@@ -533,4 +518,5 @@ export const useStore = create<ShiftState>((set, get) => ({
     })();
     return recovering;
   },
+
 }));

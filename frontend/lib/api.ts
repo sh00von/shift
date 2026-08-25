@@ -21,13 +21,12 @@ export interface Params {
   buffer_distance: number;
   default_uncertainty: number;
   run_classic: boolean;
-  run_theilsen: boolean;
-  run_ransac: boolean;
-  run_breakpoint: boolean;
+  run_ekf: boolean;
+  forecast_models: string[];
+  has_forecast_eval: boolean;
   aln2d_reach_length?: number;
   aln2d_reach_buffer?: number;
   aln2d_search_mask_buffer?: number;
-  scorecard_bic_gain?: number;
   scorecard_outlier_z?: number;
   scorecard_tie_pct?: number;
   has_scorecard?: boolean;
@@ -86,29 +85,18 @@ export interface ChoroplethResponse {
   } | null;
 }
 
-export interface ScorecardRow {
-  method: string;
-  holdout_rmse: string;
-  holdout_mae: string;
-  loocv_rmse?: string;
-  roll_rmse?: string;
-  mae?: string;
-  r2: string;
-  bic: string;
-  coverage: string;
-  win_pct: string;
-  is_recommended: boolean;
+export interface ForecastEvalRow {
+  model: string;
+  rmse: string;
+  mae: string;
+  n: number;
 }
 
-export interface ScorecardView {
+export interface ForecastEvalView {
   available: boolean;
-  headline: string;
-  recommended: string | null;
-  rows: ScorecardRow[];
-  distribution: { method: string; wins: number; win_pct: number }[];
-  n_participating: number;
-  n_total: number;
-  thresholds: { bic_gain: number; outlier_z: number; tie_pct: number };
+  rows: ForecastEvalRow[];
+  best_model: string | null;
+  n_transects: number;
 }
 
 export interface CategoricalLayer {
@@ -133,30 +121,10 @@ export interface TableRow {
   lrr: string;
   lrr_ci: string;
   trend: string;
-  tsr: string;
-  ransac: string;
   wlr: string;
-  bp_rate: string;
-  bp_year: string;
-  n_brk: string;
+  ekf: string;
 }
 
-export interface DiagnosticsResponse {
-  n_transects: number;
-  rmse_improvement: number;
-  // Error metrics (RMSE/MAE/BIC) are only computed after Rank Methods has run.
-  // Before that, only rate + R² are populated and this is false.
-  has_errors: boolean;
-  rows: {
-    model: string;
-    rate: string;
-    r2: string;
-    rmse: string;
-    mae: string;
-    bic: string;
-    comp: string;
-  }[];
-}
 
 export interface ChartTrace {
   name: string;
@@ -167,20 +135,24 @@ export interface ChartTrace {
   color: string;
 }
 
+export interface ForecastTrace {
+  model: string;
+  ci_pct: number;
+  years: number[];
+  distances: number[];
+  lower: number[];
+  upper: number[];
+  color: string;
+}
+
 export interface ChartData {
   transect_id: number;
   summary: string;
   traces: ChartTrace[];
-  breaks: { year: number; rate_before: number; rate_after: number }[];
-  forecast: {
-    model: string;
-    ci_pct: number;
-    years: number[];
-    distances: number[];
-    lower: number[];
-    upper: number[];
-  } | null;
+  forecast: ForecastTrace | null;
+  forecasts: ForecastTrace[];
 }
+
 
 export interface Aln2dSummaryRow {
   from_epoch: string;
@@ -327,16 +299,14 @@ export const api = {
     fetch(`${API_BASE}/api/session/${sid}/layers/aln2d/change`).then(
       j<ChoroplethResponse>
     ),
-  scorecard: (sid: string) =>
-    fetch(`${API_BASE}/api/session/${sid}/scorecard`).then(j<ScorecardView>),
-  bestMethod: (sid: string) =>
-    fetch(`${API_BASE}/api/session/${sid}/layers/best_method`).then(
-      j<CategoricalLayer>
-    ),
+  forecastEval: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/forecast/eval`).then(j<ForecastEvalView>),
   aln2dSummary: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/aln2d/summary`).then(
       j<{ rows: Aln2dSummaryRow[] }>
     ),
+
+
   aln2dValidation: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/aln2d/validation`).then(
       j<{ rows: Aln2dValidationRow[] }>
@@ -350,17 +320,13 @@ export const api = {
     fetch(`${API_BASE}/api/session/${sid}/table`).then(
       j<{ rows: TableRow[] }>
     ),
-  diagnostics: (sid: string) =>
-    fetch(`${API_BASE}/api/session/${sid}/diagnostics`).then(
-      j<DiagnosticsResponse>
-    ),
   summary: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/summary`).then(j<Record<string, string>>),
   chart: (sid: string, tid: number) =>
     fetch(`${API_BASE}/api/session/${sid}/chart/${tid}`).then(j<ChartData>),
   forecastModels: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/forecast-models`).then(
-      j<{ models: string[] }>
+      j<{ models: string[]; selected: string[] }>
     ),
 
 
@@ -380,7 +346,7 @@ export const api = {
   },
 };
 
-export type JobKind = "preview" | "analyze" | "forecast" | "aln2d" | "scorecard";
+export type JobKind = "preview" | "analyze" | "forecast" | "aln2d";
 
 
 export interface ProgressFrame {

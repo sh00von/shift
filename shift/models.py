@@ -22,17 +22,6 @@ class TransectSeries:
 
 
 @dataclass
-class Breakpoint:
-    """A detected regime-shift point."""
-    year: float
-    rate_before: float    # m/yr
-    rate_after: float     # m/yr
-    ci_before: tuple[float, float] = (0.0, 0.0)
-    ci_after: tuple[float, float] = (0.0, 0.0)
-    probability: float = 1.0      # reserved; 1.0 for deterministic breakpoints
-
-
-@dataclass
 class RateResult:
     """
     Output of any stats method for one transect.
@@ -46,23 +35,17 @@ class RateResult:
     nsm: float | None = None    # Net Shoreline Movement (m)
     epr: float | None = None    # End Point Rate (m/yr)
     lrr: float | None = None    # Linear Regression Rate (m/yr)
-    lrr_r2: float | None = None
     lrr_ci_low: float | None = None    # 95% CI lower bound of the LRR slope (m/yr)
     lrr_ci_high: float | None = None   # 95% CI upper bound of the LRR slope (m/yr)
     lrr_significant: bool | None = None  # True if the 95% CI excludes zero
     wlr: float | None = None    # Weighted Linear Regression (m/yr)
-    wlr_r2: float | None = None
 
-    # Changepoint results (breakpoint.py)
-    breakpoints: list[Breakpoint] = field(default_factory=list)
-    overall_rate: float | None = None   # rate of final segment (most recent era)
+    # EKF analysis method (timeseries.py)
+    ekf: float | None = None       # Extended Kalman Filter slope (m/yr)
 
-    # Robust methods (robust.py) — outlier-resistant regression
-    theilsen: float | None = None
-    theilsen_r2: float | None = None
-    ransac: float | None = None
-    ransac_r2: float | None = None
-    ransac_outliers: int | None = None
+    # Fitted curve points for EKF chart display
+    fitted_years: list[float] = field(default_factory=list)
+    fitted_values: list[float] = field(default_factory=list)
 
     # Forecast (forecast module appends this)
     forecast_years: list[float] = field(default_factory=list)

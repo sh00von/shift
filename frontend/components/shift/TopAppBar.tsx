@@ -20,7 +20,6 @@ import {
   Loader2,
   Package,
   Layers,
-  Trophy,
   BookOpen,
 } from "lucide-react";
 import Link from "next/link";
@@ -69,29 +68,18 @@ import { FieldMappingModal } from "./FieldMappingModal";
 
 const FORECAST_MODELS: string[] = [
   "Kalman Filter (DSAS)",
-  "Breakpoint (Post-break Rate)",
-  "Theil-Sen Robust Rate",
-  "RANSAC Robust Rate",
+  "EKF Rate",
+  "ARIMA",
+  "Holt Exponential Smoothing",
   "Linear Regression (LRR)",
   "Classic Endpoint Rate (EPR)",
 ];
-// Maps a Scorecard recommended method (short name) to its forecast-dropdown label,
-// so the recommended driving model can be badged in the Forecast popover.
-const SCORECARD_TO_FORECAST: Record<string, string> = {
-  Breakpoint: "Breakpoint (Post-break Rate)",
-  "Theil-Sen": "Theil-Sen Robust Rate",
-  RANSAC: "RANSAC Robust Rate",
-  Kalman: "Kalman Filter (DSAS)",
-  LRR: "Linear Regression (LRR)",
-  EPR: "Classic Endpoint Rate (EPR)",
-};
 
 const MODELS: [keyof Params, string][] = [
   ["run_classic", "USGS DSAS (EPR / LRR / WLR)"],
-  ["run_theilsen", "Theil-Sen Robust"],
-  ["run_ransac", "RANSAC Robust"],
-  ["run_breakpoint", "Breakpoint (Pelt)"],
+  ["run_ekf", "Extended Kalman Filter"],
 ];
+
 
 interface Props {
   onLoadDemo: () => void;
@@ -166,15 +154,6 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
   const slRef = useRef<HTMLInputElement>(null);
   const blRef = useRef<HTMLInputElement>(null);
 
-  // Only the models actually computed during analysis are offered for forecasting.
-  const [fcModels, setFcModels] = useState<string[]>([]);
-  useEffect(() => {
-    if (params?.has_results && sessionId) {
-      api.forecastModels(sessionId).then((r) => setFcModels(r.models)).catch(() => setFcModels([]));
-    } else {
-      setFcModels([]);
-    }
-  }, [params?.has_results, sessionId]);
 
   const withRun = async (fn: () => Promise<void>, jobName: string) => {
     store.setRunning(true, jobName);
@@ -242,13 +221,6 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
       });
       await store.reload();
       await store.refreshResultsLayers();
-      try {
-        const r = await api.forecastModels(sessionId!);
-        setFcModels(r.models);
-        if (!params?.forecast_model && r.models.length > 0) {
-          await store.setParam("forecast_model", r.models[0]);
-        }
-      } catch {}
       store.setStatus("Analysis complete across all models.", 1.0);
       toast.success("Calculated shoreline rates across all models.");
     }, "Run Rate Analysis");
@@ -272,38 +244,16 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
       toast.success("2D-ALN complete: Generated erosion/accretion mass and reach migration rates.");
     }, "Run 2D-ALN Engine");
 
-  const onScorecard = () =>
-    withRun(async () => {
-      if (!params?.has_results) {
-        toast.warning("Run the analysis (Calculate) first.");
-        return;
-      }
-      await runJob(sessionId!, "scorecard", (f) => {
-        if (f.type === "progress") {
-          store.setStatus(f.message || "", f.progress);
-          if (f.message) store.log(f.message);
-        }
-      });
-      await store.reload();
-      await store.refreshScorecard();
-      store.setActiveBottomTab("scorecard");
-      store.setStatus("Model cross-validation ranking completed.", 1.0);
-      toast.success("Scorecard ready: methods ranked by out-of-sample accuracy.");
-    }, "Rank Methods");
-
-
   const onForecast = () =>
-
     withRun(async () => {
       if (!params?.has_results) {
         toast.warning("Calculate change rates first.");
         return;
       }
-      let model = params?.forecast_model;
-      if (!model) {
-        const available = fcModels.length ? fcModels : FORECAST_MODELS;
-        model = available[0] || "Breakpoint (Post-break Rate)";
-        await store.setParam("forecast_model", model);
+      const selected = params?.forecast_models ?? ["Kalman Filter (DSAS)"];
+      if (selected.length === 0) {
+        toast.warning("Select at least one forecast model.");
+        return;
       }
       await runJob(sessionId!, "forecast", (f) => {
         if (f.type === "progress") {
@@ -312,10 +262,12 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
         }
       });
       await store.refreshResultsLayers();
+      await store.refreshForecastEval();
       store.setVisibility("forecastLine", true);
       store.setVisibility("forecastRibbon", true);
-      store.setStatus(`Forecast updated (${params?.forecast_horizon ?? 10} yrs using ${model}).`, 1.0);
-      toast.success(`Updated shoreline forecast positions (${params?.forecast_horizon ?? 10} yrs).`);
+      store.setActiveBottomTab("forecast");
+      store.setStatus(`Forecast complete — ${selected.length} model(s), ${params?.forecast_horizon ?? 10} yrs.`, 1.0);
+      toast.success(`Forecast done. Hindcast accuracy results in the Forecast Accuracy tab.`);
     }, "Update Forecast");
 
   const download = (
@@ -483,19 +435,9 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
                 desc="End Point, Linear Regression & Weighted Least Squares"
               />
               <ToggleRow
-                label="Theil-Sen Estimator"
-                pKey="run_theilsen"
-                desc="Median pairwise slope, robust to outlier surveys"
-              />
-              <ToggleRow
-                label="RANSAC Regressor"
-                pKey="run_ransac"
-                desc="Iterative random sample consensus fitting"
-              />
-              <ToggleRow
-                label="Breakpoint Detection (Regimes)"
-                pKey="run_breakpoint"
-                desc="Piecewise trend shift & acceleration detection"
+                label="Extended Kalman Filter"
+                pKey="run_ekf"
+                desc="State-space position + velocity — on by default"
               />
             </div>
             <div className="pt-1">
@@ -565,97 +507,46 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
 
 
 
-      {/* Rank Methods (model scorecard) + threshold popover */}
-      <div className="flex items-center rounded-md border border-amber-300 bg-amber-50/40">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-9 gap-1.5 rounded-r-none px-3 font-semibold text-amber-800 hover:bg-amber-100 hover:text-amber-900"
-          onClick={onScorecard}
-          disabled={!hasResults || running}
-        >
-          <Trophy className="h-4 w-4 text-amber-600" /> Rank Methods
+      {/* Forecast + multi-model config popover */}
+      <div className="flex items-center rounded-md border border-violet-200 bg-violet-50/40">
+        <Button variant="ghost" size="sm"
+          className="h-9 gap-1.5 rounded-r-none px-3 font-semibold text-violet-800 hover:bg-violet-100"
+          onClick={onForecast} disabled={!hasResults || running}>
+          <TrendingUp className="h-4 w-4 text-violet-600" /> Forecast
         </Button>
         <Popover>
           <PopoverTrigger
             render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-8 rounded-l-none border-l border-amber-300 text-amber-700 hover:bg-amber-100"
-              >
+              <Button variant="ghost" size="icon"
+                className="h-9 w-8 rounded-l-none border-l border-violet-200 text-violet-700 hover:bg-violet-100">
                 <SlidersHorizontal className="h-3.5 w-3.5" />
               </Button>
             }
           />
           <PopoverContent align="start" className="w-80 space-y-3">
-            <div className="gb-section-title">Scorecard guardrail thresholds</div>
-            <div className="grid grid-cols-2 gap-2">
-              <NumField label="Regime ΔBIC ≥" pKey="scorecard_bic_gain" min={0} step={1} />
-              <NumField label="Outlier |z| >" pKey="scorecard_outlier_z" min={0.5} step={0.5} />
-            </div>
-            <NumField label="Tie margin (%)" pKey="scorecard_tie_pct" min={0} step={1} />
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              Out-of-sample ranking (LOOCV + rolling-origin). Robust methods count only where outliers exist;
-              Breakpoint only where ΔBIC clears the threshold and it beats LRR.
+            <div className="gb-section-title">Forecast models</div>
+            <p className="text-[11px] text-slate-500">
+              Select one or more models. All run in parallel and are evaluated by hindcast RMSE/MAE.
             </p>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-
-      {/* Forecast + config popover */}
-      <div className="flex items-center rounded-md border border-slate-200">
-        <Button variant="ghost" size="sm" className="h-9 gap-1.5 rounded-r-none px-3"
-          onClick={onForecast} disabled={!hasResults || running}>
-          <TrendingUp className="h-4 w-4 text-slate-500" /> Forecast
-        </Button>
-        <Popover>
-          <PopoverTrigger
-            render={
-              <Button variant="ghost" size="icon" className="h-9 w-8 rounded-l-none border-l border-slate-200 text-slate-500">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-              </Button>
-            }
-          />
-          <PopoverContent align="start" className="w-72 space-y-3">
-            <div className="gb-section-title">Forecast configuration</div>
             <div className="space-y-1">
-              <Label className="gb-metric-label">Driving model</Label>
-              <Select
-                value={params?.forecast_model || undefined}
-                onValueChange={(v) => v && store.setParam("forecast_model", v)}
-              >
-                <SelectTrigger className="h-9 w-full text-sm">
-                  <SelectValue placeholder="Choose model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from(new Set(fcModels.length ? fcModels : FORECAST_MODELS)).map((m) => {
-                    const rec = store.scorecard?.recommended
-                      ? SCORECARD_TO_FORECAST[store.scorecard.recommended]
-                      : undefined;
-                    return (
-                      <SelectItem key={m} value={m}>
-                        <span className="flex w-full items-center justify-between gap-2">
-                          {m}
-                          {rec === m && (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                              Recommended
-                            </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {!params?.has_results ? (
-                <p className="text-[11px] text-slate-400">Run an analysis to unlock models.</p>
-              ) : !params?.forecast_model ? (
-                <p className="text-[11px] text-amber-600 font-medium">Choose a model to forecast.</p>
-              ) : null}
+              {FORECAST_MODELS.map((m) => {
+                const selected: string[] = params?.forecast_models ?? ["Kalman Filter (DSAS)"];
+                const checked = selected.includes(m);
+                return (
+                  <label key={m} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-slate-50 text-[13px]">
+                    <input type="checkbox" className="h-3.5 w-3.5 rounded accent-violet-600"
+                      checked={checked}
+                      onChange={() => {
+                        const next = checked ? selected.filter((x) => x !== m) : [...selected, m];
+                        store.setParam("forecast_models", next.length ? next : [m]);
+                      }}
+                    />
+                    <span className={checked ? "text-slate-900 font-medium" : "text-slate-500"}>{m}</span>
+                  </label>
+                );
+              })}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
               <NumField label="Horizon (yrs)" pKey="forecast_horizon" min={1} step={1} />
               <NumField label="Confidence (%)" pKey="forecast_ci" min={50} step={5}
                 transform={{ get: (v) => Math.round(v * 100), set: (v) => v / 100 }} />
@@ -703,7 +594,7 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
               <DropdownMenuItem onClick={() => download("intersections")}>
                 <FileSpreadsheet className="h-4 w-4 text-slate-500" /> Raw Intersections Series (CSV)
               </DropdownMenuItem>
-              {params?.forecast_model && (
+              {params?.has_forecast_eval && (
                 <DropdownMenuItem onClick={() => download("forecast")}>
                   <TrendingUp className="h-4 w-4 text-purple-600" /> Forecast Shoreline (GeoJSON)
                 </DropdownMenuItem>
@@ -755,8 +646,8 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
             </DialogHeader>
             <div className="space-y-3 text-sm leading-relaxed text-slate-600">
               <p>
-                SHIFT combines USGS DSAS rates, robust regressions, and changepoint regime-shift
-                detection to measure and forecast shoreline and river bank trends.
+                SHIFT combines USGS DSAS rates and robust regressions to measure and forecast
+                shoreline and river bank trends.
               </p>
               <ol className="list-decimal space-y-1.5 pl-5">
                 <li><b>Add data</b> — load the demo or upload shorelines + baseline.</li>

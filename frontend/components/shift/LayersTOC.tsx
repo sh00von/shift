@@ -41,12 +41,10 @@ const RAMPS = ["Red-Yellow-Green (DSAS)", "Turbo (Rainbow)", "Viridis", "Coolwar
 const STYLE_METRICS = [
   "LRR (m/yr)",
   "EPR (m/yr)",
-  "Theil-Sen (m/yr)",
-  "RANSAC (m/yr)",
-  "Post-break rate (m/yr)",
-  "Break year",
-  "BIC gain",
+  "WLR (m/yr)",
+  "EKF (m/yr)",
 ];
+
 const BASEMAPS = ["OpenStreetMap", "Esri World Imagery", "Carto Light"];
 const SHORELINE_PALETTES: [string, string][] = [
   ["Turbo", "turbo"],
@@ -231,14 +229,8 @@ export function LayersTOC() {
   if (params?.run_classic) {
     computedStyleMetrics.push("LRR (m/yr)", "EPR (m/yr)", "WLR (m/yr)", "NSM (m)", "SCE (m)");
   }
-  if (params?.run_theilsen) {
-    computedStyleMetrics.push("Theil-Sen (m/yr)");
-  }
-  if (params?.run_ransac) {
-    computedStyleMetrics.push("RANSAC (m/yr)");
-  }
-  if (params?.run_breakpoint) {
-    computedStyleMetrics.push("Post-break rate (m/yr)", "Break year", "BIC gain");
+  if (params?.run_ekf) {
+    computedStyleMetrics.push("EKF (m/yr)");
   }
   const activeMetrics = computedStyleMetrics.length > 0 ? computedStyleMetrics : STYLE_METRICS;
 
@@ -344,6 +336,7 @@ export function LayersTOC() {
               }
               onValueChange={onRestyle("style_metric")}
             >
+
               <SelectTrigger className="h-8 w-full text-[12px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {activeMetrics.map((m) => (
@@ -449,8 +442,8 @@ export function LayersTOC() {
         </div>
       ) : undefined,
     },
-
   ];
+
 
   const byId = new Map(layers.map((l) => [l.id, l] as const));
   const groupLayerDefs = (g: LayerGroupId): LayerDef[] =>

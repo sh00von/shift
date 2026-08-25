@@ -1,11 +1,10 @@
 "use client";
 
-import { TableProperties, BarChart2, Trophy, Sparkles, Terminal, X } from "lucide-react";
+import { TableProperties, TrendingUp, Sparkles, Terminal, X } from "lucide-react";
 import { useStore, BottomTab } from "@/lib/store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttributeTable } from "./AttributeTable";
-import { Diagnostics } from "./Diagnostics";
-import { ScorecardView } from "./ScorecardView";
+import { ForecastEvalView } from "./ForecastEvalView";
 import { ALN2DView } from "./ALN2DView";
 import { ConsoleLog } from "./ConsoleLog";
 import { Button } from "@/components/ui/button";
@@ -13,8 +12,7 @@ import { cn } from "@/lib/utils";
 
 const TABS: { value: BottomTab; label: string; Icon: any; count: (s: any) => string | null }[] = [
   { value: "table", label: "Attribute table", Icon: TableProperties, count: (s) => (s.n > 0 ? String(s.n) : null) },
-  { value: "diagnostics", label: "Diagnostics", Icon: BarChart2, count: (s) => (s.hasResults ? "fit" : null) },
-  { value: "scorecard", label: "Model Scorecard", Icon: Trophy, count: (s) => (s.hasScorecard ? "rank" : null) },
+  { value: "forecast", label: "Forecast Accuracy", Icon: TrendingUp, count: (s) => (s.hasForecastEval ? "eval" : null) },
   { value: "aln2d", label: "2D-ALN Morphodynamics", Icon: Sparkles, count: (s) => (s.hasAln2d ? "2D" : null) },
   { value: "console", label: "Console", Icon: Terminal, count: (s) => String(s.logs) },
 ];
@@ -26,7 +24,7 @@ export function BottomInspector() {
     n: transects?.features?.length || 0,
     hasResults: params?.has_results,
     hasAln2d: params?.has_aln2d_results,
-    hasScorecard: params?.has_scorecard,
+    hasForecastEval: params?.has_forecast_eval,
     logs: logs.length,
   };
 
@@ -56,6 +54,8 @@ export function BottomInspector() {
                         ? "bg-emerald-100 text-emerald-700 font-semibold"
                         : value === "diagnostics"
                         ? "bg-primary/10 text-primary"
+                        : value === "forecast"
+                        ? "bg-violet-100 text-violet-700 font-semibold"
                         : "bg-slate-100 text-slate-500"
                     )}
                   >
@@ -76,11 +76,8 @@ export function BottomInspector() {
       <TabsContent value="table" className="m-0 min-h-0 flex-1 overflow-hidden">
         <AttributeTable />
       </TabsContent>
-      <TabsContent value="diagnostics" className="m-0 min-h-0 flex-1 overflow-hidden">
-        <Diagnostics />
-      </TabsContent>
-      <TabsContent value="scorecard" className="m-0 min-h-0 flex-1 overflow-hidden">
-        <ScorecardView />
+      <TabsContent value="forecast" className="m-0 min-h-0 flex-1 overflow-hidden">
+        <ForecastEvalView />
       </TabsContent>
       <TabsContent value="aln2d" className="m-0 min-h-0 flex-1 overflow-hidden">
         <ALN2DView />
@@ -91,4 +88,3 @@ export function BottomInspector() {
     </Tabs>
   );
 }
-

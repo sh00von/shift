@@ -238,6 +238,8 @@ export default function MapCanvas({ basemap }: { basemap: string }) {
       />
     ) : null,
 
+
+
     best_method: visibility.bestMethod && bestMethod?.geojson?.features?.length ? (
       <GeoJSON
         key={`best-${bestMethod.geojson.features.length}-${opacity.bestMethod}`}

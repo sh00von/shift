@@ -140,7 +140,7 @@ export function TransectInspector() {
           margin: { l: 50, r: 15, t: 15, b: 35 },
           annotations: [
             {
-              text: "Select a transect on the map or table to view its<br>time-series profile and detected regime shifts.",
+              text: "Select a transect on the map or table to view its<br>time-series profile.",
               x: 0.5,
               y: 0.5,
               xref: "paper",
@@ -164,29 +164,24 @@ export function TransectInspector() {
       line: { color: t.color, width: t.kind === "markers+lines" ? 2.2 : 1.6, dash: t.dash ?? "solid" },
     }));
 
-    if (data.forecast) {
-      const f = data.forecast;
-      traces.push({ x: f.years, y: f.distances, mode: "lines", name: `Forecast (${f.model})`, line: { color: "#9333ea", width: 2.2, dash: "dot" } });
+    const fcList = data.forecasts?.length ? data.forecasts : (data.forecast ? [data.forecast] : []);
+    for (const f of fcList) {
+      const c = f.color || "#9333ea";
+      const rgb = c.replace("#", "").match(/.{2}/g)?.map(x => parseInt(x, 16)) ?? [147, 51, 234];
+      traces.push({ x: f.years, y: f.distances, mode: "lines", name: `${f.model}`, line: { color: c, width: 2.2, dash: "dot" } });
       traces.push({
         x: [...f.years, ...[...f.years].reverse()],
         y: [...f.upper, ...[...f.lower].reverse()],
         fill: "toself",
-        fillcolor: "rgba(147, 51, 234, 0.15)",
+        fillcolor: `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.12)`,
         line: { color: "rgba(0,0,0,0)" },
-        name: `${f.ci_pct}% CI Band`,
+        name: `${f.model} ${f.ci_pct}% CI`,
+        showlegend: false,
       });
     }
 
-    const shapes = data.breaks.map((b) => ({
-      type: "line", x0: b.year, x1: b.year, yref: "paper", y0: 0, y1: 1,
-      line: { color: "#e11d48", width: 1.25, dash: "dot" },
-    }));
-    const annotations = data.breaks.map((b) => ({
-      x: b.year, yref: "paper", y: 1, showarrow: false,
-      text: `<b>${Math.round(b.year)}</b>`,
-      font: { size: 9, color: "#e11d48", family: "JetBrains Mono, monospace" },
-      xanchor: "left", yanchor: "top",
-    }));
+    const shapes: any[] = [];
+    const annotations: any[] = [];
 
     Plotly.react(
       plotRef.current,
@@ -275,23 +270,8 @@ export function TransectInspector() {
             <div className="grid grid-cols-2 divide-x divide-y divide-slate-100">
               <Metric label="Linear rate (LRR)" value={activeRow.lrr} unit="m/yr" tone="rate" />
               <Metric label="Endpoint rate (EPR)" value={activeRow.epr} unit="m/yr" tone="rate" />
-              <Metric label="Theil-Sen robust" value={activeRow.tsr} unit="m/yr" tone="rate" />
-              <Metric label="RANSAC robust" value={activeRow.ransac} unit="m/yr" tone="rate" />
-              <div className="col-span-2 border-t border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="gb-metric-label">Breakpoint post-break rate</span>
-                  <span className="gb-num rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200">
-                    {activeRow.n_brk} regimes
-                  </span>
-                </div>
-                <div className="mt-0.5 flex items-baseline justify-between">
-                  <span className={cn("gb-metric-value", rateClass(activeRow.bp_rate))}>
-                    {activeRow.bp_rate}
-                    <span className="ml-1 text-[11px] font-normal text-slate-400">m/yr</span>
-                  </span>
-                  <span className="text-[12px] text-slate-500">Inflection {activeRow.bp_year || "—"}</span>
-                </div>
-              </div>
+              <Metric label="Weighted LR (WLR)" value={activeRow.wlr} unit="m/yr" tone="rate" />
+              <Metric label="Kalman Filter (EKF)" value={activeRow.ekf} unit="m/yr" tone="rate" />
             </div>
           </div>
           </div>

@@ -34,12 +34,10 @@ class Session:
 
     # Method toggles
     run_classic: bool = True
-    run_theilsen: bool = True
-    run_ransac: bool = True
-    run_breakpoint: bool = True
+    run_ekf: bool = True
 
     # Forecast parameters
-    forecast_model: str = ""
+    forecast_models: list = field(default_factory=lambda: ["Kalman Filter (DSAS)"])
     forecast_horizon: int = 10
     forecast_ci: float = 0.90
 
@@ -53,15 +51,12 @@ class Session:
     aln2d_reach_buffer: float = 1000.0
     aln2d_search_mask_buffer: float = 5000.0
 
-    # Model scorecard (guarded cross-validation ranking) thresholds
-    scorecard_bic_gain: float = 6.0
-    scorecard_outlier_z: float = 2.5
-    scorecard_tie_pct: float = 5.0
 
     # Pipeline outputs
     transects: Any = None            # GeoDataFrame
     series_list: list = field(default_factory=list)
     results: dict = field(default_factory=dict)
+
 
     # 2D-ALN outputs
     aln2d_erosion: Any = None         # GeoDataFrame
@@ -70,8 +65,8 @@ class Session:
     aln2d_summary: Any = None         # DataFrame
     aln2d_validation: Any = None      # DataFrame
 
-    # Model scorecard output
-    scorecard: Any = None             # dict from shift.validation.build_scorecard
+    # Forecast evaluation output
+    forecast_eval: Any = None         # dict from shift.validation.evaluate_forecasts
 
     # Bookkeeping
     logs: list[str] = field(default_factory=list)

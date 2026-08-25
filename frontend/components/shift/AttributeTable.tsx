@@ -27,19 +27,14 @@ const COLS: {
   { key: "epr", label: "EPR", align: "right", tooltip: "End Point Rate (m/yr)", rate: true },
   { key: "lrr", label: "LRR", align: "right", tooltip: "Linear Regression Rate (m/yr)", rate: true },
   { key: "trend", label: "Trend", align: "center", tooltip: "LRR trend from the 95% confidence interval — Stable when the CI includes zero (not significant)" },
-  { key: "tsr", label: "Theil-Sen", align: "right", tooltip: "Robust Median Slope (m/yr)", rate: true },
-  { key: "ransac", label: "RANSAC", align: "right", tooltip: "Random Sample Consensus (m/yr)", rate: true },
   { key: "wlr", label: "WLR", align: "right", tooltip: "Weighted Linear Regression (m/yr)", rate: true },
-  { key: "bp_rate", label: "Post-break", align: "right", tooltip: "Latest regime rate (m/yr)", rate: true },
-  { key: "bp_year", label: "Break yr", align: "center", tooltip: "Inflection / changepoint year" },
-  { key: "n_brk", label: "Regimes", align: "center", tooltip: "Number of regime shifts" },
+  { key: "ekf", label: "EKF", align: "right", tooltip: "Extended Kalman Filter slope (m/yr)", rate: true },
 ];
 
 const FILTERS: { id: TableFilterKind; label: string }[] = [
   { id: "all", label: "All" },
   { id: "eroding", label: "Eroding" },
   { id: "accreting", label: "Accreting" },
-  { id: "changepoints", label: "Changepoints" },
 ];
 
 function rateClass(v: unknown) {
@@ -68,6 +63,7 @@ function TrendBadge({ value }: { value: string }) {
     </span>
   );
 }
+
 
 export function AttributeTable() {
   const {
@@ -102,8 +98,6 @@ export function AttributeTable() {
       out = out.filter((r) => { const v = parseFloat(String(r.lrr ?? r.epr ?? "0")); return !isNaN(v) && v < 0; });
     else if (tableFilter === "accreting")
       out = out.filter((r) => { const v = parseFloat(String(r.lrr ?? r.epr ?? "0")); return !isNaN(v) && v > 0; });
-    else if (tableFilter === "changepoints")
-      out = out.filter((r) => { const n = parseInt(String(r.n_brk ?? "0")); return !isNaN(n) && n > 1; });
 
     const q = tableSearch.trim().toLowerCase();
     if (q) out = out.filter((r) => Object.values(r).some((v) => String(v).toLowerCase().includes(q)));
@@ -248,7 +242,11 @@ export function AttributeTable() {
                             : "text-slate-600"
                         )}
                       >
-                        {c.key === "trend" ? <TrendBadge value={String(r.trend)} /> : (r[c.key] ?? "—")}
+                        {c.key === "trend" ? (
+                          <TrendBadge value={String(r.trend)} />
+                        ) : (
+                          r[c.key] ?? "—"
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -260,4 +258,5 @@ export function AttributeTable() {
       </div>
     </div>
   );
+
 }

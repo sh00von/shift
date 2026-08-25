@@ -143,46 +143,12 @@ def _extract_vals(state: Session):
     if "LRR" in m:
         res_list = r.get("classic") or r.get("dsas") or []
         return [x.lrr if x else nan for x in res_list]
-    if "Theil-Sen" in m or "TSR" in m:
-        res_list = r.get("theilsen") or []
-        return [x.theilsen if x else nan for x in res_list]
-    if "RANSAC" in m:
-        res_list = r.get("ransac") or []
-        return [x.ransac if x else nan for x in res_list]
-    if "Post" in m or "Breakpoint" in m or "rate" in m.lower():
-        res_list = r.get("breakpoint") or r.get("classic") or []
-        return [x.overall_rate if x else nan for x in res_list]
-    if "year" in m.lower():
-        res_list = r.get("breakpoint") or []
-        return [x.breakpoints[-1].year if (x and x.breakpoints) else nan for x in res_list]
-    if "BIC" in m:
-        from scipy import stats as sc
-        out = []
-        for ser, bp in zip(s, r.get("breakpoint", [])):
-            yrs = np.array(ser.years()); d = np.array(ser.distances); n = len(yrs)
-            if n < 2:
-                out.append(0.0)
-                continue
-            res = sc.linregress(yrs, d)
-            sse_l = float(np.sum((d - (res.slope * yrs + res.intercept)) ** 2))
-            bic_l = n * math.log(max(sse_l / n, 1e-10)) + 2 * math.log(n)
-            if bp and bp.breakpoints:
-                idx = [int(np.argmin(np.abs(yrs - b.year))) for b in bp.breakpoints]
-                cuts = [0] + sorted(idx) + [n]
-                sse_b = sum(
-                    float(np.sum((d[cuts[i]:cuts[i+1]] - (sc.linregress(yrs[cuts[i]:cuts[i+1]], d[cuts[i]:cuts[i+1]]).slope * yrs[cuts[i]:cuts[i+1]] + sc.linregress(yrs[cuts[i]:cuts[i+1]], d[cuts[i]:cuts[i+1]]).intercept)) ** 2))
-                    for i in range(len(cuts) - 1) if cuts[i+1] - cuts[i] >= 2
-                )
-                k = 2 * (len(cuts) - 1) + len(idx)
-                bic_b = n * math.log(max(sse_b / n, 1e-10)) + k * math.log(n)
-                out.append(bic_l - bic_b)
-            else:
-                out.append(0.0)
-        return out
-
-    for key in ["classic", "theilsen", "ransac", "breakpoint"]:
+    if "EKF" in m:
+        res_list = r.get("ekf") or []
+        return [x.ekf if x else nan for x in res_list]
+    for key in ["classic", "ekf"]:
         if key in r and r[key]:
-            return [getattr(x, "lrr", getattr(x, "overall_rate", getattr(x, "theilsen", nan))) if x else nan for x in r[key]]
+            return [getattr(x, "lrr", getattr(x, "ekf", nan)) if x else nan for x in r[key]]
     return None
 
 
@@ -335,7 +301,7 @@ def forecast_geojson(state: Session) -> dict:
         "ribbon": ribbon_fc,
         "target_year": target_year,
         "ci_pct": int(state.forecast_ci * 100),
-        "model": state.forecast_model,
+        "model": state.forecast_models[0] if state.forecast_models else "Kalman Filter (DSAS)",
     }
 
 
@@ -390,12 +356,10 @@ BEST_METHOD_COLORS = {
     "EPR": "#64748b",
     "LRR": "#2563eb",
     "WLR": "#0891b2",
-    "Theil-Sen": "#16a34a",
-    "RANSAC": "#65a30d",
-    "Kalman": "#7c3aed",
-    "Breakpoint": "#ea580c",
+    "EKF": "#7c3aed",
 }
 _NO_WINNER_COLOR = "#cbd5e1"
+
 
 
 def best_method_geojson(state: Session) -> dict:

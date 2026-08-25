@@ -8,7 +8,7 @@ Each method is fit on the historical training surveys, projects forward to the l
 survey date, and is evaluated against the real measured shoreline position. A domain-aware
 guarded rule selects the winning method per transect and headline recommendation.
 
-Competitors: EPR, LRR, WLR, Theil-Sen, RANSAC, Kalman, Breakpoint.
+Competitors: EPR, LRR, WLR, EKF.
 """
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from shift.models import TransectSeries
 ProgressCB = Callable[[str, float], None]
 
 DEFAULT_THRESHOLDS = {
-    "bic_gain": 6.0,      # Kass–Raftery "strong" evidence for a regime shift
     "outlier_z": 2.5,     # |standardised residual| above which a survey is an outlier
     "tie_pct": 5.0,       # winners within this % of the best error count as a tie
 }
@@ -33,14 +32,11 @@ METHODS: list[tuple[str, int, int]] = [
     ("EPR", 2, 0),
     ("LRR", 2, 1),
     ("WLR", 2, 2),
-    ("Theil-Sen", 2, 3),
-    ("RANSAC", 3, 4),
-    ("Kalman", 2, 5),
-    ("Breakpoint", 4, 6),
+    ("EKF", 2, 3),
 ]
 COMPLEXITY = {name: rank for name, _, rank in METHODS}
 MIN_TRAIN = {name: mt for name, mt, _ in METHODS}
-ALWAYS_ELIGIBLE = {"EPR", "LRR", "WLR", "Kalman"}
+ALWAYS_ELIGIBLE = {"EPR", "LRR", "WLR", "EKF"}
 
 
 # ── Per-method position predictors: given training (years, dist, unc), predict at target year ──
@@ -61,101 +57,48 @@ def _predict(name: str, x: np.ndarray, y: np.ndarray, w: np.ndarray, t: float) -
         wt = 1.0 / np.clip(w, 1e-6, None) ** 2
         s, b = np.polyfit(x, y, 1, w=np.sqrt(wt))
         return float(s * t + b)
-    if name == "Theil-Sen":
-        res = st.theilslopes(y, x)
-        return float(res[0] * t + res[1])
-    if name == "RANSAC":
-        from sklearn.linear_model import RANSACRegressor, LinearRegression
-        m = RANSACRegressor(estimator=LinearRegression(), min_samples=max(2, len(x) // 2), random_state=0)
-        m.fit(x.reshape(-1, 1), y)
-        return float(m.predict([[t]])[0])
-    if name == "Kalman":
-        return _kalman_predict(x, y, w, t)
-    if name == "Breakpoint":
-        return _breakpoint_predict(x, y, t)
+    if name == "EKF":
+        return _ekf_predict(x, y, w, t)
     raise ValueError(name)
 
 
-def _kalman_predict(x: np.ndarray, y: np.ndarray, w: np.ndarray, t: float) -> float:
-    """Linear Kalman filter over the training surveys, projected to the target year."""
+def _ekf_predict(x: np.ndarray, y: np.ndarray, w: np.ndarray, t: float) -> float:
+    """EKF forward pass on training data, then project to target year."""
+    import warnings
     slope, intercept = _ols(x, y)
     resid = y - (slope * x + intercept)
     resid_var = float(np.sum(resid ** 2) / max(len(x) - 2, 1))
     ss_x = float(np.sum((x - x.mean()) ** 2)) or 1.0
-    state = np.array([y[0], slope], dtype=float)
-    P = np.array([[max(w[0], 1.0) ** 2, 0.0], [0.0, max(resid_var / ss_x, (abs(slope) * 0.5 + 0.05) ** 2)]])
+    w_safe = np.maximum(w, 0.5)
+    state = np.array([intercept + slope * x[0], slope], dtype=float)
+    q_vel = max(resid_var / ss_x * 0.1, (abs(slope) * 0.02 + 0.01) ** 2)
+    P = np.array([[w_safe[0] ** 2, 0.0], [0.0, q_vel * 10]])
     H = np.array([[1.0, 0.0]])
-    q_rate = max(resid_var / ss_x * 0.1, (abs(slope) * 0.02 + 0.01) ** 2)
-
-    def predict_step(state, P, dt):
-        F = np.array([[1.0, dt], [0.0, 1.0]])
-        Q = np.array([[q_rate * dt ** 3 / 3.0, q_rate * dt ** 2 / 2.0],
-                      [q_rate * dt ** 2 / 2.0, q_rate * dt]])
-        return F @ state, F @ P @ F.T + Q
-
     for k in range(1, len(x)):
         dt = float(x[k] - x[k - 1]) or 1e-6
-        state, P = predict_step(state, P, dt)
-        R = np.array([[max(w[k], 1.0) ** 2]])
-        innov = y[k] - (H @ state)[0]
+        F = np.array([[1.0, dt], [0.0, 1.0]])
+        Q = np.array([[q_vel * dt ** 3 / 3, q_vel * dt ** 2 / 2],
+                      [q_vel * dt ** 2 / 2, q_vel * dt]])
+        state = F @ state
+        P = F @ P @ F.T + Q
+        R = np.array([[w_safe[k] ** 2]])
         S = (H @ P @ H.T + R)[0, 0]
         K = (P @ H.T / S).reshape(2)
-        state = state + K * innov
+        state = state + K * (y[k] - (H @ state)[0])
         P = (np.eye(2) - np.outer(K, H)) @ P
-    return float(state[0] + state[1] * (t - x[-1]))
+    dt_pred = float(t - x[-1])
+    return float(state[0] + state[1] * dt_pred)
 
 
-def _breakpoint_predict(x: np.ndarray, y: np.ndarray, t: float) -> float:
-    """Single-breakpoint piecewise-linear predictor (BIC-selected vs no break)."""
+# ── In-sample stats (BIC only) ──
+
+def _insample(name: str, x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
+    """Return BIC of the method fit on the whole series."""
     n = len(x)
-    s, b = _ols(x, y)
-    best = (None, s, b)  # (break_index, slope, intercept) for no-break
-    base_sse = float(np.sum((y - (s * x + b)) ** 2))
-    best_bic = n * math.log(max(base_sse / n, 1e-10)) + 2 * math.log(n)
-    for k in range(2, n - 1):  # need ≥2 points each side
-        s1, b1 = _ols(x[:k], y[:k])
-        s2, b2 = _ols(x[k:], y[k:])
-        sse = float(np.sum((y[:k] - (s1 * x[:k] + b1)) ** 2) + np.sum((y[k:] - (s2 * x[k:] + b2)) ** 2))
-        bic = n * math.log(max(sse / n, 1e-10)) + 5 * math.log(n)
-        if bic < best_bic:
-            best_bic = bic
-            best = (k, s2, b2)  # predict from the later (most recent) segment
-    _, sl, ic = best
-    return float(sl * t + ic)
-
-
-# ── In-sample stats (for the R²/BIC columns + Breakpoint eligibility) ──
-
-def _insample(name: str, x: np.ndarray, y: np.ndarray, w: np.ndarray) -> tuple[float, float]:
-    """Return (R², BIC) of the method fit on the whole series."""
-    n = len(x)
-    sst = float(np.sum((y - y.mean()) ** 2)) or 1e-10
-    if name == "Breakpoint":
-        k, sse = _breakpoint_fit_sse(x, y)
-        r2 = max(0.0, min(1.0, 1.0 - sse / sst))
-        bic = n * math.log(max(sse / n, 1e-10)) + k * math.log(n)
-        return r2, bic
     yhat = np.array([_safe_predict(name, x, y, w, xi) for xi in x])
     sse = float(np.sum((y - yhat) ** 2))
-    r2 = max(0.0, min(1.0, 1.0 - sse / sst))
-    kparams = {"EPR": 2, "LRR": 2, "WLR": 2, "Theil-Sen": 2, "RANSAC": 2, "Kalman": 3}.get(name, 2)
-    bic = n * math.log(max(sse / n, 1e-10)) + kparams * math.log(n)
-    return r2, bic
-
-
-def _breakpoint_fit_sse(x: np.ndarray, y: np.ndarray) -> tuple[int, float]:
-    n = len(x)
-    s, b = _ols(x, y)
-    base_sse = float(np.sum((y - (s * x + b)) ** 2))
-    best_bic = n * math.log(max(base_sse / n, 1e-10)) + 2 * math.log(n)
-    best = (2, base_sse)
-    for k in range(2, n - 1):
-        s1, b1 = _ols(x[:k], y[:k]); s2, b2 = _ols(x[k:], y[k:])
-        sse = float(np.sum((y[:k] - (s1 * x[:k] + b1)) ** 2) + np.sum((y[k:] - (s2 * x[k:] + b2)) ** 2))
-        bic = n * math.log(max(sse / n, 1e-10)) + 5 * math.log(n)
-        if bic < best_bic:
-            best_bic = bic; best = (5, sse)
-    return best
+    kparams = {"EPR": 2, "LRR": 2, "WLR": 2, "EKF": 3}.get(name, 2)
+    return n * math.log(max(sse / n, 1e-10)) + kparams * math.log(n)
 
 
 def _safe_predict(name: str, x: np.ndarray, y: np.ndarray, w: np.ndarray, t: float) -> float:
@@ -171,14 +114,7 @@ def _outliers_present(x: np.ndarray, y: np.ndarray, outlier_z: float) -> bool:
     s, b = _ols(x, y)
     resid = y - (s * x + b)
     sd = float(np.std(resid))
-    if sd > 0 and float(np.max(np.abs(resid))) / sd > outlier_z:
-        return True
-    try:
-        from sklearn.linear_model import RANSACRegressor, LinearRegression
-        m = RANSACRegressor(estimator=LinearRegression(), random_state=0).fit(x.reshape(-1, 1), y)
-        return bool((~m.inlier_mask_).sum() >= 1)
-    except Exception:
-        return False
+    return sd > 0 and float(np.max(np.abs(resid))) / sd > outlier_z
 
 
 # ── Holdout evaluation of one transect (Train on 1..N-1, Test on N) ──
@@ -202,43 +138,26 @@ def _score_transect(series: TransectSeries, th: dict) -> dict | None:
 
     for name, mt, _ in METHODS:
         if n_train < mt:
-            per[name] = {"error": None, "abs_error": None, "sq_error": None, "r2": None, "bic": None, "scoreable": False, "eligible": False}
+            per[name] = {"error": None, "abs_error": None, "sq_error": None, "bic": None, "scoreable": False, "eligible": False}
             continue
 
         pred = _safe_predict(name, x_train, y_train, w_train, x_test)
         if math.isnan(pred):
-            per[name] = {"error": None, "abs_error": None, "sq_error": None, "r2": None, "bic": None, "scoreable": False, "eligible": False}
+            per[name] = {"error": None, "abs_error": None, "sq_error": None, "bic": None, "scoreable": False, "eligible": False}
             continue
 
         err = y_test - pred
         abs_err = abs(err)
         sq_err = err ** 2
-        r2, bic = _insample(name, x, y, w)
+        bic = _insample(name, x, y, w)
         per[name] = {
             "error": float(err),
             "abs_error": float(abs_err),
             "sq_error": float(sq_err),
-            "r2": r2,
             "bic": bic,
             "scoreable": True,
             "eligible": True,
         }
-
-    # ── Guarded eligibility ──
-    lrr = per["LRR"]
-    lrr_err = lrr["abs_error"]
-    lrr_bic = lrr["bic"]
-
-    for name in ("Theil-Sen", "RANSAC"):
-        if per[name]["scoreable"] and not has_outliers:
-            per[name]["eligible"] = False
-
-    bp = per["Breakpoint"]
-    if bp["scoreable"] and bp["bic"] is not None and lrr_bic is not None and lrr_err is not None:
-        delta_bic = lrr_bic - bp["bic"]  # positive → breakpoint improves BIC
-        beats_lrr = bp["abs_error"] is not None and bp["abs_error"] < lrr_err
-        bp["eligible"] = bool(delta_bic >= th["bic_gain"] and beats_lrr)
-        bp["delta_bic"] = round(float(delta_bic), 2)
 
     # ── Winner (lowest holdout absolute error, tie → simpler complexity) ──
     cands = []
@@ -257,6 +176,7 @@ def _score_transect(series: TransectSeries, th: dict) -> dict | None:
     return {"n": n, "has_outliers": has_outliers, "winner": winner, "methods": per}
 
 
+
 # ── Dataset-level aggregation ──
 
 def build_scorecard(series_list: list[TransectSeries], thresholds: dict | None = None,
@@ -265,7 +185,7 @@ def build_scorecard(series_list: list[TransectSeries], thresholds: dict | None =
     total = len(series_list)
 
     per_tx = []  # {transect_id, winner}
-    acc = {name: {"sq_errors": [], "abs_errors": [], "r2": [], "bic": [], "scored": 0, "wins": 0}
+    acc = {name: {"sq_errors": [], "abs_errors": [], "bic": [], "scored": 0, "wins": 0}
            for name, _, _ in METHODS}
     n_participating = 0
 
@@ -283,7 +203,6 @@ def build_scorecard(series_list: list[TransectSeries], thresholds: dict | None =
                 a["scored"] += 1
                 if m["sq_error"] is not None: a["sq_errors"].append(m["sq_error"])
                 if m["abs_error"] is not None: a["abs_errors"].append(m["abs_error"])
-                if m["r2"] is not None: a["r2"].append(m["r2"])
                 if m["bic"] is not None: a["bic"].append(m["bic"])
         if res["winner"]:
             acc[res["winner"]]["wins"] += 1
@@ -311,7 +230,6 @@ def build_scorecard(series_list: list[TransectSeries], thresholds: dict | None =
             "complexity": rank,
             "holdout_rmse": h_rmse,
             "holdout_mae": h_mae,
-            "r2": _m(a["r2"]),
             "bic": _m(a["bic"]),
             "coverage": a["scored"],
             "coverage_pct": round(100.0 * a["scored"] / n_participating, 1) if n_participating else 0.0,

@@ -15,8 +15,7 @@ def forecast(
     """
     Extrapolate the most recent era's rate forward `horizon_years`.
 
-    Uses the final segment rate from breakpoint results,
-    or LRR/EPR from classic results. Uncertainty bands grow linearly
+    Uses EKF, LRR, or EPR rate. Uncertainty bands grow linearly
     with time using the CI from the last segment.
 
     Modifies `result` in-place (appends forecast fields) and returns it.
@@ -26,32 +25,21 @@ def forecast(
     last_year = float(years[-1])
     last_dist = float(d[-1])
 
-    if result.breakpoints:
-        # Breakpoint carries a real per-segment confidence interval for the rate.
-        bp = result.breakpoints[-1]
-        rate = bp.rate_after
-        ci_low, ci_high = bp.ci_after
-        rate_uncertainty = (ci_high - ci_low) / 2
+    # Pick the driving rate, then propagate the standard error of the slope
+    # from the data (residuals around a best-fit line with that slope).
+    if result.ekf is not None:
+        rate = result.ekf
+    elif result.lrr is not None:
+        rate = result.lrr
+    elif result.epr is not None:
+        rate = result.epr
     else:
-        # Pick the driving rate, then propagate the *standard error of the slope*
-        # from the data (residuals around a best-fit line with that slope) rather
-        # than an arbitrary fixed percentage of the rate.
-        if result.theilsen is not None:
-            rate = result.theilsen
-        elif result.ransac is not None:
-            rate = result.ransac
-        elif result.lrr is not None:
-            rate = result.lrr
-        elif result.epr is not None:
-            rate = result.epr
-        elif result.overall_rate is not None:
-            rate = result.overall_rate
-        else:
-            rate = float(np.polyfit(years, d, 1)[0]) if len(years) >= 2 else 0.0
-        se = _slope_stderr(years, d, rate)
-        # Fall back to a 15% heuristic only when there are too few points to
-        # estimate a standard error (n < 3).
-        rate_uncertainty = se if se is not None else abs(rate) * 0.15
+        rate = float(np.polyfit(years, d, 1)[0]) if len(years) >= 2 else 0.0
+    se = _slope_stderr(years, d, rate)
+    # Fall back to a 15% heuristic only when there are too few points to
+    # estimate a standard error (n < 3).
+    rate_uncertainty = se if se is not None else abs(rate) * 0.15
+
 
 
     horizon_years = int(horizon_years)
@@ -79,9 +67,7 @@ def _slope_stderr(years: np.ndarray, d: np.ndarray, rate: float) -> float | None
 
     Uses the residuals around the best-fit line that has this slope (least-squares
     intercept), i.e. se = sqrt( (SSE/(n-2)) / Σ(x-x̄)² ). Returns None when there
-    are too few points (n < 3) or x has no spread. For a non-OLS slope (Theil-Sen,
-    RANSAC) the residuals are ≥ the OLS residuals, so the estimate is appropriately
-    conservative.
+    are too few points (n < 3) or x has no spread.
     """
     n = len(years)
     if n < 3:

@@ -63,13 +63,11 @@ def _params(s: Session) -> dict:
         "spacing": s.spacing, "smoothing": s.smoothing, "transect_length": s.transect_length,
         "cast_side": s.cast_side, "buffer_distance": s.buffer_distance,
         "default_uncertainty": s.default_uncertainty,
-        "run_classic": s.run_classic, "run_theilsen": s.run_theilsen, "run_ransac": s.run_ransac,
-        "run_breakpoint": s.run_breakpoint,
+        "run_classic": s.run_classic, "run_ekf": s.run_ekf,
         "aln2d_reach_length": s.aln2d_reach_length, "aln2d_reach_buffer": s.aln2d_reach_buffer,
         "aln2d_search_mask_buffer": s.aln2d_search_mask_buffer,
-        "scorecard_bic_gain": s.scorecard_bic_gain, "scorecard_outlier_z": s.scorecard_outlier_z,
-        "scorecard_tie_pct": s.scorecard_tie_pct, "has_scorecard": s.scorecard is not None,
-        "forecast_model": s.forecast_model, "forecast_horizon": s.forecast_horizon,
+        "has_forecast_eval": s.forecast_eval is not None,
+        "forecast_models": s.forecast_models, "forecast_horizon": s.forecast_horizon,
         "forecast_ci": s.forecast_ci, "style_metric": s.style_metric, "color_ramp": s.color_ramp,
         "shoreline_palette": s.shoreline_palette,
         "date_col": s.date_col, "date_format": s.date_format, "uncertainty_col": s.uncertainty_col,
@@ -88,16 +86,11 @@ class ParamPatch(BaseModel):
     buffer_distance: float | None = None
     default_uncertainty: float | None = None
     run_classic: bool | None = None
-    run_theilsen: bool | None = None
-    run_ransac: bool | None = None
-    run_breakpoint: bool | None = None
+    run_ekf: bool | None = None
     aln2d_reach_length: float | None = None
     aln2d_reach_buffer: float | None = None
     aln2d_search_mask_buffer: float | None = None
-    scorecard_bic_gain: float | None = None
-    scorecard_outlier_z: float | None = None
-    scorecard_tie_pct: float | None = None
-    forecast_model: str | None = None
+    forecast_models: list | None = None
     forecast_horizon: int | None = None
     forecast_ci: float | None = None
     style_metric: str | None = None
@@ -106,6 +99,7 @@ class ParamPatch(BaseModel):
     date_col: str | None = None
     date_format: str | None = None
     uncertainty_col: str | None = None
+
 
 
 
@@ -372,10 +366,6 @@ def get_table(sid: str):
     return {"rows": serialize.table_rows(_require(sid))}
 
 
-@app.get("/api/session/{sid}/diagnostics")
-def get_diagnostics(sid: str):
-    return serialize.diagnostics(_require(sid)) or {"n_transects": 0, "rows": [], "rmse_improvement": 0}
-
 
 @app.get("/api/session/{sid}/summary")
 def get_summary(sid: str):
@@ -410,14 +400,9 @@ def layer_aln2d_change(sid: str):
     return gj.aln2d_change_geojson(_require(sid))
 
 
-@app.get("/api/session/{sid}/scorecard")
-def get_scorecard(sid: str):
-    return serialize.scorecard_view(_require(sid))
-
-
-@app.get("/api/session/{sid}/layers/best_method")
-def layer_best_method(sid: str):
-    return gj.best_method_geojson(_require(sid))
+@app.get("/api/session/{sid}/forecast/eval")
+def get_forecast_eval(sid: str):
+    return serialize.forecast_eval_view(_require(sid))
 
 
 @app.get("/api/session/{sid}/aln2d/summary")
@@ -436,19 +421,11 @@ def get_aln2d_reaches(sid: str):
 
 
 @app.get("/api/session/{sid}/forecast-models")
-def forecast_models(sid: str):
+def forecast_models_endpoint(sid: str):
+    from shift.validation.forecast_eval import FORECAST_MODELS
     s = _require(sid)
-    r = s.results
-    available = []
-    if r.get("breakpoint"):
-        available.append("Breakpoint (Post-break Rate)")
-    if r.get("theilsen"):
-        available.append("Theil-Sen Robust Rate")
-    if r.get("ransac"):
-        available.append("RANSAC Robust Rate")
-    if r.get("classic"):
-        available += ["Kalman Filter (DSAS)", "Linear Regression (LRR)", "Classic Endpoint Rate (EPR)"]
-    return {"models": available}
+    available = FORECAST_MODELS if s.results else []
+    return {"models": available, "selected": s.forecast_models}
 
 
 
@@ -530,15 +507,6 @@ async def ws_aln2d(ws: WebSocket, sid: str):
     await _run_job(ws, s, pipeline.run_aln2d)
 
 
-@app.websocket("/api/session/{sid}/ws/scorecard")
-async def ws_scorecard(ws: WebSocket, sid: str):
-    s = store.get(sid)
-    if s is None:
-        await ws.close(code=4404)
-        return
-    await _run_job(ws, s, pipeline.run_scorecard)
-
-
 @app.websocket("/api/session/{sid}/ws/forecast")
 async def ws_forecast(ws: WebSocket, sid: str):
     s = store.get(sid)
@@ -553,16 +521,12 @@ async def ws_forecast(ws: WebSocket, sid: str):
 def _build_full_rates_df(s: Session) -> pd.DataFrame:
     r = s.results or {}
     classic = r.get("classic", [])
-    theilsen = r.get("theilsen", [])
-    ransac = r.get("ransac", [])
-    breakpt = r.get("breakpoint", [])
+    ekf = r.get("ekf", [])
 
     rows = []
     for i, ser in enumerate(s.series_list):
         cl = classic[i] if i < len(classic) else None
-        ts = theilsen[i] if i < len(theilsen) else None
-        rs = ransac[i] if i < len(ransac) else None
-        bp = breakpt[i] if i < len(breakpt) else None
+        ek = ekf[i] if i < len(ekf) else None
 
         years = ser.years()
         n_pts = len(ser)
@@ -576,21 +540,13 @@ def _build_full_rates_df(s: Session) -> pd.DataFrame:
             "latest_year": round(years[-1], 3) if years else None,
             "epr_m_yr": round(cl.epr, 3) if cl and cl.epr is not None else None,
             "lrr_m_yr": round(cl.lrr, 3) if cl and cl.lrr is not None else None,
-            "lrr_r2": round(cl.lrr_r2, 4) if cl and cl.lrr_r2 is not None else None,
             "lrr_ci_low_m_yr": round(cl.lrr_ci_low, 3) if cl and cl.lrr_ci_low is not None else None,
             "lrr_ci_high_m_yr": round(cl.lrr_ci_high, 3) if cl and cl.lrr_ci_high is not None else None,
             "lrr_significant": cl.lrr_significant if cl else None,
             "wlr_m_yr": round(cl.wlr, 3) if cl and cl.wlr is not None else None,
-            "wlr_r2": round(cl.wlr_r2, 4) if cl and cl.wlr_r2 is not None else None,
             "nsm_m": round(cl.nsm, 2) if cl and cl.nsm is not None else None,
             "sce_m": round(cl.sce, 2) if cl and cl.sce is not None else None,
-            "theilsen_m_yr": round(ts.theilsen, 3) if ts and ts.theilsen is not None else None,
-            "theilsen_r2": round(ts.theilsen_r2, 4) if ts and ts.theilsen_r2 is not None else None,
-            "ransac_m_yr": round(rs.ransac, 3) if rs and rs.ransac is not None else None,
-            "ransac_r2": round(rs.ransac_r2, 4) if rs and rs.ransac_r2 is not None else None,
-            "breakpoint_rate_m_yr": round(bp.overall_rate, 3) if bp and bp.overall_rate is not None else None,
-            "break_year": round(bp.breakpoints[-1].year, 2) if bp and bp.breakpoints else None,
-            "n_regimes": len(bp.breakpoints) + 1 if bp and bp.breakpoints else 1,
+            "ekf_m_yr": round(ek.ekf, 3) if ek and ek.ekf is not None else None,
         })
     return pd.DataFrame(rows)
 
@@ -641,13 +597,11 @@ INCLUDED DATA PRODUCTS:
 1. shift_transect_rates.csv
    Complete tabular rate metrics for every transect across all calculated models:
    - EPR (End Point Rate, m/yr)
-   - LRR (Linear Regression Rate, m/yr) & R² goodness of fit
-   - WLR (Weighted Linear Regression, m/yr) & R²
+   - LRR (Linear Regression Rate, m/yr)
+   - WLR (Weighted Linear Regression, m/yr)
    - NSM (Net Shoreline Movement, meters)
    - SCE (Shoreline Change Envelope, meters)
-   - TSR (Theil-Sen Robust Rate, m/yr) & R²
-   - RANSAC (Random Sample Consensus Rate, m/yr) & R²
-   - Breakpoint (Pelt Changepoint Regime Shift Rate, m/yr, break year, n_regimes)
+   - EKF (Extended Kalman Filter rate, m/yr)
 
 2. transects_rates_envelope.geojson
    Spatial LineStrings clipped to the active shoreline envelope [min_dist, max_dist]
@@ -670,10 +624,11 @@ INCLUDED DATA PRODUCTS:
 
 CITATION:
 --------------------------------------------------------------------------------
-SHIFT: Geospatial Breakpoint & Automated Shoreline Change Analysis Workbench
-Built with Python (GeoPandas, Shapely, Scikit-Learn, Ruptures) & Next.js / Leaflet.
+SHIFT: Automated Shoreline Change Analysis Workbench
+Built with Python (GeoPandas, Shapely, Scikit-Learn) & Next.js / Leaflet.
 ================================================================================
 """
+
 
 
 @app.get("/api/session/{sid}/export/csv")

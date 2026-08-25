@@ -24,11 +24,9 @@ def write_gpkg(
             "transect_id": r.transect_id,
             "method": r.method,
             "sce": r.sce, "nsm": r.nsm, "epr": r.epr,
-            "lrr": r.lrr, "lrr_r2": r.lrr_r2,
-            "wlr": r.wlr, "wlr_r2": r.wlr_r2,
-            "overall_rate": r.overall_rate,
-            "n_breakpoints": len(r.breakpoints),
-            "break_years": ",".join(f"{b.year:.1f}" for b in r.breakpoints),
+            "lrr": r.lrr,
+            "wlr": r.wlr,
+            "ekf": r.ekf,
         }
         rows.append(row)
 
@@ -40,7 +38,7 @@ def write_gpkg(
 def write_summary_txt(
     results: list[RateResult],
     output_path: str | Path,
-    method: str = "breakpoint",
+    method: str = "classic",
 ) -> None:
     """Write a DSAS-style summary text report."""
     rs = [r for r in results if r.method == method]
@@ -56,24 +54,17 @@ def write_summary_txt(
         "",
     ]
 
-    overall_rates = [r.overall_rate for r in rs if r.overall_rate is not None]
-    if overall_rates:
+    lrr_rates = [r.lrr for r in rs if r.lrr is not None]
+    if lrr_rates:
         lines += [
-            f"OVERALL RATE (most recent era, m/yr)",
-            f"  Mean : {np.mean(overall_rates):.2f}",
-            f"  Max erosion : {min(overall_rates):.2f}",
-            f"  Max accretion: {max(overall_rates):.2f}",
-            f"  Erosional transects: {sum(1 for r in overall_rates if r < 0)} "
-            f"({100 * sum(1 for r in overall_rates if r < 0) / n:.1f}%)",
+            f"LINEAR REGRESSION RATE (LRR, m/yr)",
+            f"  Mean : {np.mean(lrr_rates):.2f}",
+            f"  Max erosion : {min(lrr_rates):.2f}",
+            f"  Max accretion: {max(lrr_rates):.2f}",
+            f"  Erosional transects: {sum(1 for r in lrr_rates if r < 0)} "
+            f"({100 * sum(1 for r in lrr_rates if r < 0) / n:.1f}%)",
             "",
         ]
-
-    n_breaks = [len(r.breakpoints) for r in rs]
-    lines += [
-        f"BREAKPOINTS",
-        f"  Transects with ≥1 break: {sum(1 for n in n_breaks if n > 0)}",
-        f"  Mean breaks per transect: {np.mean(n_breaks):.2f}",
-    ]
 
     Path(output_path).write_text("\n".join(lines), encoding="utf-8")
 
@@ -83,7 +74,7 @@ def plot_transect(
     result: RateResult,
     output_path: str | Path | None = None,
 ) -> plt.Figure:
-    """Plot distance-vs-time for one transect with breakpoints and forecast."""
+    """Plot distance-vs-time for one transect with fitted models and forecast."""
     years = series.years()
     d = series.distances
 
@@ -96,17 +87,6 @@ def plot_transect(
         y0 = years[0]
         lrr_line = [result.lrr * (y - y0) + d[0] for y in years]
         ax.plot(years, lrr_line, "k--", alpha=0.5, label=f"LRR {result.lrr:.1f} m/yr")
-
-    # Breakpoints
-    colors = plt.cm.tab10.colors
-    for i, bp in enumerate(result.breakpoints):
-        ax.axvline(bp.year, color=colors[i % 10], linestyle=":", alpha=0.8)
-        ax.annotate(
-            f"Break {bp.year:.0f}\n{bp.rate_before:.1f}→{bp.rate_after:.1f} m/yr",
-            xy=(bp.year, np.mean(d)),
-            fontsize=7,
-            color=colors[i % 10],
-        )
 
     # Forecast
     if result.forecast_years:
@@ -125,3 +105,4 @@ def plot_transect(
     if output_path:
         fig.savefig(str(output_path), dpi=150)
     return fig
+
