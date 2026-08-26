@@ -167,7 +167,7 @@ async def upload_baseline(sid: str, file: UploadFile):
 @router.post("/session/{sid}/demo")
 def load_demo(sid: str):
     s = require(sid)
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sl_path = os.path.join(root_dir, "sample_data", "demo_shorelines.geojson")
     bl_path = os.path.join(root_dir, "sample_data", "demo_baseline.geojson")
     sl_fname, bl_fname = "demo_shorelines.geojson", "demo_baseline.geojson"
