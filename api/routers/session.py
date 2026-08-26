@@ -167,25 +167,13 @@ async def upload_baseline(sid: str, file: UploadFile):
 @router.post("/session/{sid}/demo")
 def load_demo(sid: str):
     s = require(sid)
-    custom_sl = r"D:\thesis-work\shore-geojson\demo_shorelines.geojson"
-    custom_bl = r"D:\thesis-work\shore-geojson\demo_baseline.geojson"
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    bundled_sl = os.path.join(root_dir, "sample_data", "demo_shorelines.geojson")
-    bundled_bl = os.path.join(root_dir, "sample_data", "demo_baseline.geojson")
+    sl_path = os.path.join(root_dir, "sample_data", "demo_shorelines.geojson")
+    bl_path = os.path.join(root_dir, "sample_data", "demo_baseline.geojson")
+    sl_fname, bl_fname = "demo_shorelines.geojson", "demo_baseline.geojson"
 
-    if os.path.exists(custom_sl) and os.path.exists(custom_bl):
-        sl_path, bl_path = custom_sl, custom_bl
-        sl_fname, bl_fname = "demo_shorelines.geojson", "demo_baseline.geojson"
-    elif os.path.exists(bundled_sl) and os.path.exists(bundled_bl):
-        sl_path, bl_path = bundled_sl, bundled_bl
-        sl_fname, bl_fname = "demo_shorelines.geojson", "demo_baseline.geojson"
-    else:
-        out_dir = os.path.join(tempfile.gettempdir(), "shift_sample")
-        sl_path = os.path.join(out_dir, "demo_shorelines.geojson")
-        bl_path = os.path.join(out_dir, "demo_baseline.geojson")
-        if not (os.path.exists(sl_path) and os.path.exists(bl_path)):
-            sl_path, bl_path = pipeline.generate_sample_data(out_dir)
-        sl_fname, bl_fname = "demo_shorelines.geojson", "demo_baseline.geojson"
+    if not (os.path.exists(sl_path) and os.path.exists(bl_path)):
+        raise HTTPException(status_code=500, detail="Demo data not found in sample_data/.")
 
     s.shoreline_path = sl_path
     s.baseline_path = bl_path
