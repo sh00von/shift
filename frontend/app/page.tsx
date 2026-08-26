@@ -41,12 +41,12 @@ export default function Home() {
       await store.reload();
       await Promise.all([store.refreshShorelines(), store.refreshBaseline()]);
       store.log(
-        `Demo dataset loaded: ${info.shoreline.n_features} surveys (1990–2023) and synthetic offshore baseline.`,
+        `Demo dataset loaded: ${info.shoreline.n_features} surveys, date column '${info.shoreline.date_col}', baseline loaded.`,
         "SUCCESS"
       );
       store.setStatus("Demo dataset loaded. Ready for transect casting.", 0.3);
-      toast.success("Loaded 6 shoreline surveys (1990–2023) & baseline.", {
-        description: `${info.shoreline.n_features} shorelines, ${info.baseline.n_features} baseline features`,
+      toast.success(`Loaded ${info.shoreline.n_features} shoreline surveys & baseline.`, {
+        description: `Date column: ${info.shoreline.date_col} · ${info.baseline.n_features} baseline feature(s)`,
       });
     } catch (e: any) {
       store.log(e.message || "Demo dataset load failed", "ERROR");
