@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 
 from shift.models import RateResult, TransectSeries
-from shift.forecast._utils import strip_outliers
 
 
 def kalman_forecast(
@@ -23,7 +22,6 @@ def kalman_forecast(
     state covariance — the same recursive estimator USGS DSAS uses.
     """
     from scipy.stats import norm
-    series = strip_outliers(series)
     years = np.asarray(series.years(), dtype=float)
     d = np.asarray(series.distances, dtype=float)
     unc = np.asarray(series.uncertainties, dtype=float)
