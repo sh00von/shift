@@ -38,8 +38,15 @@ def _truncated(series: TransectSeries) -> TransectSeries:
 
 def _predict_one(model: str, series: TransectSeries, target_year: float) -> float | None:
     """Run model on series, forecast to target_year, return predicted position."""
-    from shift.stats import DSASMethod, EKFMethod, arima_forecast, holt_forecast, polynomial_forecast, logarithmic_forecast
-    from shift.forecast.extrapolate import forecast as lin_forecast, kalman_forecast
+    from shift.stats import DSASMethod, EKFMethod
+    from shift.forecast import (
+        forecast as lin_forecast,
+        kalman_forecast,
+        arima_forecast,
+        holt_forecast,
+        polynomial_forecast,
+        logarithmic_forecast,
+    )
 
     years = np.array(series.years(), dtype=float)
     d = np.array(series.distances, dtype=float)
