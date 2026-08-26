@@ -41,6 +41,7 @@ export interface LayerVisibility {
   aln2dChange: boolean;
   aln2dReaches: boolean;
   cbc: boolean;
+  bestMethod: boolean;
 }
 
 export interface LayerOpacity {
@@ -52,6 +53,7 @@ export interface LayerOpacity {
   aln2dChange: number;
   aln2dReaches: number;
   cbc: number;
+  bestMethod: number;
 }
 
 // ── QGIS-style layer tree: fixed groups + user-reorderable draw order ──
@@ -118,6 +120,7 @@ interface ShiftState {
 
   // Diagnostics layers
   cbcLayer: CategoricalLayer | null;
+  bestMethod: ChoroplethResponse | null;
   forecastEval: ForecastEvalView | null;
   aln2dSummary: any[] | null;
   aln2dValidation: any[] | null;
@@ -238,6 +241,7 @@ export const useStore = create<ShiftState>((set, get) => ({
   aln2dValidation: null,
   aln2dReachRows: null,
   cbcLayer: null,
+  bestMethod: null,
 
   visibility: {
     shorelines: true,
@@ -249,6 +253,7 @@ export const useStore = create<ShiftState>((set, get) => ({
     aln2dChange: true,
     aln2dReaches: true,
     cbc: true,
+    bestMethod: true,
   },
   opacity: {
     shorelines: 1.0,
@@ -259,6 +264,7 @@ export const useStore = create<ShiftState>((set, get) => ({
     aln2dChange: 0.7,
     aln2dReaches: 0.95,
     cbc: 0.9,
+    bestMethod: 1.0,
   },
 
 
