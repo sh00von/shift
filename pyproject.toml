@@ -16,7 +16,9 @@ dependencies = [
     "statsmodels>=0.14",
     "pmdarima>=2.0",
     "matplotlib>=3.8",
-    "pymc>=5.0",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.29",
+    "python-multipart>=0.0.9",
 ]
 
 

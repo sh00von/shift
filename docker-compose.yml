@@ -1,26 +1,43 @@
 services:
+
+  # ── Reverse proxy (single entry point for Dokploy/Traefik) ─────────────────
+  # Dokploy routes external traffic to this service on port 80.
+  # Caddy proxies /api/* → backend and everything else → frontend.
+  # HTTPS/TLS is terminated upstream by Dokploy's Traefik — Caddy stays plain HTTP.
   caddy:
     image: caddy:2-alpine
-    ports:
-      - "80:80"
-      - "443:443"
+    expose:
+      - "80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
     restart: unless-stopped
 
+  # ── Python / FastAPI analysis engine ────────────────────────────────────────
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     expose:
       - "8437"
+    environment:
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8437/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
+  # ── Next.js frontend ─────────────────────────────────────────────────────────
   frontend:
     build:
       context: frontend

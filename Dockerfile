@@ -2,30 +2,27 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for geopandas/pyproj
+# System deps for geopandas / pyproj / shapely
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdal-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first (layer cache)
+# ── Layer 1: install heavy deps first so rebuilds are fast ──────────────────
+# Copy only the manifest — source code changes won't bust this layer
 COPY pyproject.toml ./
-COPY api/ ./api/
-COPY shift/ ./shift/
+# Dummy package dir so pip install -e . resolves without the real source
+RUN mkdir -p shift api && \
+    pip install --no-cache-dir -e ".[dev]" && \
+    rm -rf shift api
+
+# ── Layer 2: copy source ─────────────────────────────────────────────────────
+COPY shift/       ./shift/
+COPY api/         ./api/
 COPY sample_data/ ./sample_data/
 
-RUN pip install --no-cache-dir \
-    geopandas \
-    shapely \
-    pyproj \
-    numpy \
-    scipy \
-    statsmodels \
-    pmdarima \
-    matplotlib \
-    fastapi \
-    "uvicorn[standard]" \
-    python-multipart \
-    && pip install --no-cache-dir -e .
+# Re-install in editable mode without reinstalling deps (already cached above)
+RUN pip install --no-cache-dir -e . --no-deps
 
 EXPOSE 8437
 
