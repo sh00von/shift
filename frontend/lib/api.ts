@@ -131,6 +131,15 @@ export interface TableRow {
 }
 
 
+export interface RateProfilePoint {
+  transect_id: number;
+  epr: number | null;
+  lrr: number | null;
+  wlr: number | null;
+  sens: number | null;
+  ekf: number | null;
+}
+
 export interface ScatterPoint {
   transect_id: number;
   epr: number;
@@ -405,6 +414,10 @@ export const api = {
     fetch(`${API_BASE}/api/session/${sid}/summary`).then(j<Record<string, string>>),
   chart: (sid: string, tid: number) =>
     fetch(`${API_BASE}/api/session/${sid}/chart/${tid}`).then(j<ChartData>),
+  rateProfile: (sid: string) =>
+    fetch(`${API_BASE}/api/session/${sid}/rate-profile`).then(
+      j<{ points: RateProfilePoint[] }>
+    ),
   forecastModels: (sid: string) =>
     fetch(`${API_BASE}/api/session/${sid}/forecast-models`).then(
       j<{ models: string[]; selected: string[] }>

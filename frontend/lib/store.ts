@@ -21,7 +21,7 @@ const sessionGone = (e: unknown) =>
 let recovering: Promise<void> | null = null;
 
 export type RibbonTab = "project" | "map" | "analysis" | "forecast" | "view";
-export type BottomTab = "table" | "forecast" | "aln2d" | "diagnostics" | "console";
+export type BottomTab = "table" | "profile" | "forecast" | "aln2d" | "diagnostics" | "console";
 export type TableFilterKind = "all" | "eroding" | "accreting";
 
 export interface LogEntry {

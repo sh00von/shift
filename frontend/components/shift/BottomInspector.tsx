@@ -1,6 +1,6 @@
 "use client";
 
-import { TableProperties, TrendingUp, Sparkles, Terminal, X, BarChart2 } from "lucide-react";
+import { TableProperties, TrendingUp, Sparkles, Terminal, X, BarChart2, LineChart } from "lucide-react";
 import { useStore, BottomTab } from "@/lib/store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AttributeTable } from "./AttributeTable";
@@ -8,11 +8,13 @@ import { ForecastEvalView } from "./ForecastEvalView";
 import { ALN2DView } from "./ALN2DView";
 import { ConsoleLog } from "./ConsoleLog";
 import { DiagnosticsView } from "./DiagnosticsView";
+import { RateProfileChart } from "./RateProfileChart";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TABS: { value: BottomTab; label: string; Icon: any; count: (s: any) => string | null }[] = [
   { value: "table",       label: "Attribute Table",       Icon: TableProperties, count: (s) => (s.n > 0 ? String(s.n) : null) },
+  { value: "profile",     label: "Rate Profile",          Icon: LineChart,        count: (s) => (s.hasResults ? "chart" : null) },
   { value: "diagnostics", label: "Diagnostics",           Icon: BarChart2,       count: (s) => (s.hasResults ? "4" : null) },
   { value: "forecast",    label: "Forecast Accuracy",     Icon: TrendingUp,      count: (s) => (s.hasForecastEval ? "eval" : null) },
   { value: "aln2d",       label: "2D-ALN Morphodynamics", Icon: Sparkles,        count: (s) => (s.hasAln2d ? "2D" : null) },
@@ -58,6 +60,8 @@ export function BottomInspector() {
                         ? "bg-sky-100 text-sky-700 font-semibold"
                         : value === "forecast"
                         ? "bg-violet-100 text-violet-700 font-semibold"
+                        : value === "profile"
+                        ? "bg-blue-100 text-blue-700 font-semibold"
                         : "bg-slate-100 text-slate-500"
                     )}
                   >
@@ -77,6 +81,9 @@ export function BottomInspector() {
 
       <TabsContent value="table" className="m-0 min-h-0 flex-1 overflow-hidden">
         <AttributeTable />
+      </TabsContent>
+      <TabsContent value="profile" className="m-0 min-h-0 flex-1 overflow-hidden">
+        <RateProfileChart />
       </TabsContent>
       <TabsContent value="diagnostics" className="m-0 min-h-0 flex-1 overflow-hidden">
         <DiagnosticsView />

@@ -1,6 +1,8 @@
 """Layer data, table, chart, summary, diagnostics, and forecast endpoints."""
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, HTTPException
 
 from api import geojson as gj
@@ -76,6 +78,32 @@ def get_chart(sid: str, tid: int):
     if data is None:
         raise HTTPException(status_code=404, detail="Transect not found.")
     return data
+
+
+@router.get("/session/{sid}/rate-profile")
+def get_rate_profile(sid: str):
+    """Numeric rates per transect for the along-shore rate profile chart."""
+    s = require(sid)
+    r = s.results or {}
+    classic = r.get("classic", [])
+    ekf = r.get("ekf", [])
+
+    def _n(v):
+        return None if (v is None or (isinstance(v, float) and math.isnan(v))) else round(float(v), 3)
+
+    points = []
+    for i, ser in enumerate(s.series_list):
+        cl = classic[i] if i < len(classic) else None
+        ek = ekf[i] if i < len(ekf) else None
+        points.append({
+            "transect_id": int(ser.transect_id),
+            "epr": _n(cl.epr if cl else None),
+            "lrr": _n(cl.lrr if cl else None),
+            "wlr": _n(cl.wlr if cl else None),
+            "sens": _n(cl.sens if cl else None),
+            "ekf": _n(ek.ekf if ek else None),
+        })
+    return {"points": points}
 
 
 @router.get("/session/{sid}/aln2d/summary")
