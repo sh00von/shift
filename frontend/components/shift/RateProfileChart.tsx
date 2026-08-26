@@ -7,11 +7,11 @@ import { api, RateProfilePoint } from "@/lib/api";
 type Metric = "lrr" | "epr" | "wlr" | "sens" | "ekf";
 
 const METRICS: { key: Metric; label: string; color: string }[] = [
-  { key: "lrr",  label: "LRR",      color: "#2563eb" },
-  { key: "epr",  label: "EPR",      color: "#64748b" },
-  { key: "wlr",  label: "WLR",      color: "#0891b2" },
-  { key: "sens", label: "Sen's",    color: "#d97706" },
-  { key: "ekf",  label: "EKF",      color: "#7c3aed" },
+  { key: "lrr",  label: "LRR",        color: "#2563eb" },
+  { key: "epr",  label: "EPR",        color: "#64748b" },
+  { key: "wlr",  label: "WLR",        color: "#0891b2" },
+  { key: "sens", label: "Sen's Slope", color: "#d97706" },
+  { key: "ekf",  label: "EKF",        color: "#7c3aed" },
 ];
 
 const W = 900, H = 220, PAD = { top: 18, right: 16, bottom: 36, left: 56 };

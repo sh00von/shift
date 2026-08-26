@@ -432,7 +432,7 @@ export function TopAppBar({ onLoadDemo, onClear }: Props) {
               <ToggleRow
                 label="USGS DSAS (EPR, LRR, WLR)"
                 pKey="run_classic"
-                desc="End Point, Linear Regression & Weighted Least Squares"
+                desc="End Point, Linear Regression & Weighted Least Squares + Sen's Slope & Mann-Kendall"
               />
               <ToggleRow
                 label="Extended Kalman Filter"
