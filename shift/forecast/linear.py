@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from shift.models import RateResult, TransectSeries
+from shift.forecast._utils import strip_outliers
 
 
 def forecast(
@@ -17,6 +18,7 @@ def forecast(
     Uses EKF, LRR, or EPR rate. Uncertainty bands grow linearly with time
     using the propagated slope standard error from the data residuals.
     """
+    series = strip_outliers(series)
     years = np.array(series.years())
     d = np.array(series.distances)
     last_year = float(years[-1])

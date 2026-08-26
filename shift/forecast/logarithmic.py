@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from shift.models import RateResult, TransectSeries
-from shift.forecast._utils import fill_flat
+from shift.forecast._utils import fill_flat, strip_outliers
 
 
 def logarithmic_forecast(
@@ -22,6 +22,7 @@ def logarithmic_forecast(
     from scipy.stats import t as t_dist
     from scipy.optimize import curve_fit
 
+    series = strip_outliers(series)
     years = np.array(series.years(), dtype=float)
     d = np.array(series.distances, dtype=float)
     last_year = float(years[-1])

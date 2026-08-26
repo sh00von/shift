@@ -6,7 +6,7 @@ import warnings
 import numpy as np
 
 from shift.models import RateResult, TransectSeries
-from shift.forecast._utils import annual_grid, fill_flat
+from shift.forecast._utils import annual_grid, fill_flat, strip_outliers
 
 
 def holt_forecast(
@@ -22,6 +22,7 @@ def holt_forecast(
     from scipy.stats import norm as _norm
     z = float(_norm.ppf(1 - (1 - ci) / 2))
 
+    series = strip_outliers(series)
     years = np.array(series.years(), dtype=float)
     d = np.array(series.distances, dtype=float)
     last_year = float(years[-1])
