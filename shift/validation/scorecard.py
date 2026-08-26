@@ -19,6 +19,7 @@ import numpy as np
 from scipy import stats as st
 
 from shift.models import TransectSeries
+from shift.forecast._utils import strip_outliers
 
 ProgressCB = Callable[[str, float], None]
 
@@ -131,9 +132,25 @@ def _score_transect(series: TransectSeries, th: dict) -> dict | None:
 
     x_train, y_train, w_train = x[:-1], y[:-1], w[:-1]
     x_test, y_test = float(x[-1]), float(y[-1])
-    n_train = len(x_train)
 
     has_outliers = _outliers_present(x_train, y_train, th["outlier_z"])
+
+    # Strip positional outliers from training window before fitting any model.
+    # Uses the same MAD-based filter as the forecast modules — at least 4 clean
+    # training points must remain, otherwise the raw training set is kept.
+    _train_series = series.__class__(
+        transect_id=series.transect_id,
+        dates=series.dates[:-1],
+        distances=list(y_train),
+        uncertainties=list(w_train),
+    )
+    _clean = strip_outliers(_train_series)
+    if len(_clean) >= 2:
+        x_train = np.asarray(_clean.years(), float)
+        y_train = np.asarray(_clean.distances, float)
+        w_train = np.asarray(_clean.uncertainties, float)
+
+    n_train = len(x_train)
     per: dict[str, dict] = {}
 
     for name, mt, _ in METHODS:
