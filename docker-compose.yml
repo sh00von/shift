@@ -7,8 +7,8 @@ services:
   # HTTPS/TLS is terminated upstream by Dokploy's Traefik — Caddy stays plain HTTP.
   caddy:
     image: caddy:2-alpine
-    ports:
-      - "6677:6677"
+    expose:
+      - "6677"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
