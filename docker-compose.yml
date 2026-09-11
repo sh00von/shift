@@ -1,26 +1,7 @@
 services:
 
-  # ── Reverse proxy (single entry point for Dokploy/Traefik) ─────────────────
-  # Dokploy routes external traffic to this service on port 6677 — set 6677
-  # as the container port in the Dokploy domain/proxy settings for this app.
-  # Caddy proxies /api/* → backend and everything else → frontend.
-  # HTTPS/TLS is terminated upstream by Dokploy's Traefik — Caddy stays plain HTTP.
-  caddy:
-    image: caddy:2-alpine
-    expose:
-      - "6677"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_started
-    restart: unless-stopped
-
   # ── Python / FastAPI analysis engine ────────────────────────────────────────
+  # Give this service its own Dokploy domain (container port 7766).
   backend:
     build:
       context: .
@@ -39,16 +20,19 @@ services:
       start_period: 30s
 
   # ── Next.js frontend ─────────────────────────────────────────────────────────
+  # Give this service its own Dokploy domain (container port 6767).
+  # NEXT_PUBLIC_API_BASE must point at the backend's public domain — it's
+  # baked into the client bundle at build time, so set it as a build arg too.
   frontend:
     build:
       context: frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
     expose:
       - "6767"
+    environment:
+      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
     depends_on:
       - backend
     restart: unless-stopped
-
-volumes:
-  caddy_data:
-  caddy_config:

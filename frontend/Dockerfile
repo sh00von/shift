@@ -9,6 +9,10 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+# NEXT_PUBLIC_* vars are inlined into the client bundle at build time.
+ARG NEXT_PUBLIC_API_BASE
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+
 RUN pnpm build
 
 # ── runtime ──────────────────────────────────────────────────────────────────
