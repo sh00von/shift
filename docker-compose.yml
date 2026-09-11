@@ -1,13 +1,14 @@
 services:
 
   # ── Reverse proxy (single entry point for Dokploy/Traefik) ─────────────────
-  # Dokploy routes external traffic to this service on port 80.
+  # Dokploy routes external traffic to this service on port 6677 — set 6677
+  # as the container port in the Dokploy domain/proxy settings for this app.
   # Caddy proxies /api/* → backend and everything else → frontend.
   # HTTPS/TLS is terminated upstream by Dokploy's Traefik — Caddy stays plain HTTP.
   caddy:
     image: caddy:2-alpine
-    expose:
-      - "80"
+    ports:
+      - "6677:6677"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -25,13 +26,13 @@ services:
       context: .
       dockerfile: Dockerfile
     expose:
-      - "8437"
+      - "7766"
     environment:
       - PYTHONUNBUFFERED=1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8437/api/health')"]
+             "import urllib.request; urllib.request.urlopen('http://localhost:7766/api/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -43,7 +44,7 @@ services:
       context: frontend
       dockerfile: Dockerfile
     expose:
-      - "4921"
+      - "6767"
     depends_on:
       - backend
     restart: unless-stopped

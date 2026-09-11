@@ -47,11 +47,11 @@ uvicorn api.main:app --port 8000 --reload
 ```
 
 ### 2. Frontend Setup (Next.js + TailwindCSS + Leaflet)
-Ensure you have Node.js 18+ and `npm` installed:
+Ensure you have Node.js 18+ and `pnpm` installed:
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ---
@@ -79,5 +79,5 @@ python -m pytest
 Ensure the frontend builds without TypeScript or compilation errors:
 ```bash
 cd frontend
-npm run build
+pnpm build
 ```

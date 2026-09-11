@@ -1,8 +1,8 @@
 # Caddy runs as internal HTTP-only proxy — TLS is terminated by Dokploy/Traefik upstream.
-:80 {
+:6677 {
     # Backend — REST + WebSocket
     handle /api/* {
-        reverse_proxy backend:8437 {
+        reverse_proxy backend:7766 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             # WebSocket upgrade support
@@ -13,7 +13,7 @@
 
     # Frontend — Next.js
     handle {
-        reverse_proxy frontend:4921 {
+        reverse_proxy frontend:6767 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
         }

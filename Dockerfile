@@ -24,6 +24,6 @@ COPY sample_data/ ./sample_data/
 # Re-install in editable mode without reinstalling deps (already cached above)
 RUN pip install --no-cache-dir -e . --no-deps
 
-EXPOSE 8437
+EXPOSE 7766
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8437"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7766"]

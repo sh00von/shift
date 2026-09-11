@@ -33,8 +33,8 @@ python -m pytest tests/test_aln2d.py   # a single file
 From `frontend/`:
 
 ```bash
-npm install
-npm run dev      # Next.js dev server on http://localhost:3000
+pnpm install
+pnpm dev      # Next.js dev server on http://localhost:3000
 ```
 
 Open `http://localhost:3000`. The frontend expects the backend at
@@ -48,9 +48,9 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000
 Other scripts:
 
 ```bash
-npm run build    # production build
-npm run start    # serve the production build
-npm run lint     # eslint
+pnpm build    # production build
+pnpm start    # serve the production build
+pnpm lint     # eslint
 ```
 
 ## 3. First analysis (demo data)

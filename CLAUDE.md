@@ -21,10 +21,10 @@ python -m pytest tests/test_classic.py::<func>  # run a single test
 
 ### Frontend (from `frontend/`)
 ```bash
-npm install
-npm run dev      # Next.js dev server on :3000
-npm run build
-npm run lint     # eslint
+pnpm install
+pnpm dev      # Next.js dev server on :3000
+pnpm build
+pnpm lint     # eslint
 ```
 
 The frontend expects the backend at `http://localhost:8000` (see `frontend/lib/api.ts`).

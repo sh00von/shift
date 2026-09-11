@@ -2,12 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN npm run build
+RUN pnpm build
 
 # ── runtime ──────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
@@ -20,7 +22,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-EXPOSE 4921
-ENV PORT=4921
+EXPOSE 6767
+ENV PORT=6767
 
 CMD ["node", "server.js"]
